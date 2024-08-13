@@ -1,0 +1,5 @@
+mambavision/model_weights/
+__pycache__/
+mambavision/models/__pycache__/
+output/
+mambavision/result/
