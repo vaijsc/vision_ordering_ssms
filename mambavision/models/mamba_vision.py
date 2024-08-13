@@ -285,6 +285,7 @@ class ConvBlock(nn.Module):
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x):
+        import ipdb; ipdb.set_trace()
         input = x
         x = self.conv1(x)
         x = self.norm1(x)
