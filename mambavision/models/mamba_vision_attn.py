@@ -666,7 +666,8 @@ class MambaVision(nn.Module):
                                      downsample=(i < 3),
                                      layer_scale=layer_scale,
                                      layer_scale_conv=layer_scale_conv,
-                                     transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
+                                     transformer_blocks=list(range(0, depths[i]//4)) + list(range(3 * depths[i] // 4, depths[i])) if depths[i] % 4 == 0 else list(range(0, depths[i]//4 + 1)) + list(range(3 * depths[i] // 4 + 1, depths[i]))
+                                    #  transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
                                      )
             self.levels.append(level)
         self.norm = nn.BatchNorm2d(num_features)

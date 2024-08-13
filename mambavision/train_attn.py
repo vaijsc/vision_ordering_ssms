@@ -39,7 +39,7 @@ from scheduler.scheduler_factory import create_scheduler
 import shutil
 from utils.datasets import imagenet_lmdb_dataset
 from tensorboard import TensorboardLogger
-from models.mamba_vision import *
+from models.mamba_vision_attn import *
 
 try:
     from apex import amp
@@ -560,7 +560,7 @@ def main():
         start_epoch = resume_epoch
     if lr_scheduler is not None and start_epoch > 0:
         lr_scheduler.step(start_epoch)
-    # import ipdb; ipdb.set_trace()
+
     if args.local_rank == 0:
         _logger.info('Scheduled epochs: {}'.format(num_epochs))
 
@@ -588,7 +588,6 @@ def main():
                     exit(1)
             dataset_eval = ImageDataset(eval_dir)
     else:
-        # import ipdb; ipdb.set_trace()
         dataset_train = create_dataset(
             args.dataset, root=args.data_dir + os.path.join('/train'), split=args.train_split, is_training=True,
             class_map=args.class_map,
