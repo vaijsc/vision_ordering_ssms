@@ -262,7 +262,7 @@ class PatchEmbed(nn.Module):
         x = self.conv_down(x)
         return x
 
-
+# [128, 80, 56, 56]
 class ConvBlock(nn.Module):
 
     def __init__(self, dim,
@@ -285,8 +285,7 @@ class ConvBlock(nn.Module):
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x):
-        import ipdb; ipdb.set_trace()
-        input = x
+        input = x # torch.Size([128, 80, 56, 56])
         x = self.conv1(x)
         x = self.norm1(x)
         x = self.act1(x)
@@ -295,7 +294,7 @@ class ConvBlock(nn.Module):
         if self.layer_scale:
             x = x * self.gamma.view(1, -1, 1, 1)
         x = input + self.drop_path(x)
-        return x
+        return x # torch.Size([128, 80, 56, 56])
 
 
 class MambaVisionMixer(nn.Module):
@@ -694,12 +693,14 @@ class MambaVision(nn.Module):
         return {'rpb'}
 
     def forward_features(self, x):
-        x = self.patch_embed(x)
+        # print('x_shape = ', x.shape)
+        x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
         for level in self.levels:
             x = level(x)
+        # torch.Size([128, 640, 7, 7])
         x = self.norm(x)
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
+        x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
+        x = torch.flatten(x, 1) # torch.Size([128, 640])
         return x
 
     def forward(self, x):

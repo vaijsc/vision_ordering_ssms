@@ -1,6 +1,10 @@
 #!/bin/bash
 
-DATA_PATH="/ImageNet/train"
+
+#Superpod:
+#DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet/train"
+
+DATA_PATH="/home/ubuntu/workspace/dataset/imagenet/train"
 MODEL=mamba_vision_T
 BS=2
 EXP=Test
