@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=mambaV_1gpu
+#SBATCH --job-name=mv_attn
 #SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_attn.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
