@@ -1,10 +1,9 @@
 #!/bin/bash
-#!/bin/bash
 #SBATCH --job-name=mv_original
 #SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
-#SBATCH --nodelist=sdc2-hpc-dgx-a100-020
+#SBATCH --nodelist=sdc2-hpc-dgx-a100-017
 #SBATCH --mem-per-gpu=50G
 #SBATCH --cpus-per-gpu=40
 #SBATCH --partition=research
@@ -24,7 +23,7 @@ echo $CUDA_VISIBLE_DEVICES
 #Superpod:
 #DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet/train"
 
-DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet/train"
+DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet"
 MODEL=mamba_vision_T
 BS=128
 EXP=Original
