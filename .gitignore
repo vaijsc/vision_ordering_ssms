@@ -3,3 +3,6 @@ __pycache__/
 mambavision/models/__pycache__/
 output/
 mambavision/result/
+logdir/
+# entries/logdir
+# entries/slurm-*

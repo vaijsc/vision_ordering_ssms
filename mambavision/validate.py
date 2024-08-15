@@ -315,6 +315,7 @@ def validate(args):
             if real_labels is not None:
                 real_labels.add_result(output)
 
+            # import ipdb; ipdb.set_trace()
             # measure accuracy and record loss
             acc1, acc5 = accuracy(output.detach(), target, topk=(1, 5))
             losses.update(loss.item(), input.size(0))

@@ -983,7 +983,7 @@ def validate(model, loader, loss_fn, args, amp_autocast=suppress, log_suffix='')
             if reduce_factor > 1:
                 output = output.unfold(0, reduce_factor, reduce_factor).mean(dim=2)
                 target = target[0:target.size(0):reduce_factor]
-
+            # import ipdb; ipdb.set_trace()
             loss = loss_fn(output, target)
             acc1, acc5 = utils.accuracy(output, target, topk=(1, 5))
 
