@@ -5,7 +5,11 @@
 #SBATCH --gpus-per-node=1
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 #SBATCH --nodelist=sdc2-hpc-dgx-a100-018
+=======
+#SBATCH --nodelist=sdc2-hpc-dgx-a100-019
+>>>>>>> 39a87a24704883c4065a81b305c48220b9a260b0
 =======
 #SBATCH --nodelist=sdc2-hpc-dgx-a100-019
 >>>>>>> 39a87a24704883c4065a81b305c48220b9a260b0
