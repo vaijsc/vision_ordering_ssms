@@ -3,7 +3,15 @@
 #SBATCH --error=/lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/mambavision/result/mambaV.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
-#SBATCH --nodelist=sdc2-hpc-dgx-a100-017
+<<<<<<< HEAD
+<<<<<<< HEAD
+#SBATCH --nodelist=sdc2-hpc-dgx-a100-018
+=======
+#SBATCH --nodelist=sdc2-hpc-dgx-a100-019
+>>>>>>> 39a87a24704883c4065a81b305c48220b9a260b0
+=======
+#SBATCH --nodelist=sdc2-hpc-dgx-a100-019
+>>>>>>> 39a87a24704883c4065a81b305c48220b9a260b0
 #SBATCH --mem-per-gpu=50G
 #SBATCH --cpus-per-gpu=40
 #SBATCH --partition=research
@@ -14,7 +22,7 @@
 #module load python/miniconda3/miniconda3
 eval "$(conda shell.bash hook)"
 #conda activate /lustre/scratch/client/vinai/users/anhnd81/envs/mambavision
-conda activate /lustre/scratch/client/vinai/users/phinh2/khanhdn10/envs/mvision
+conda activate /lustre/scratch/client/vinai/users/phinh2/workspace/envs/simba
 #cd /home/anhnd81/anhnd81/workspace/mambavision_1/mambavision
 cd /lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/mambavision
 echo "Current path is $PATH"

@@ -868,8 +868,9 @@ def train_one_epoch(
 
             if args.mesa>0.0:
                 if epoch/args.epochs > args.mesa_start_ratio:
-                    with torch.no_grad() and model_ema is not None:
-                        ema_output = model_ema.module(input).data.detach()
+                    with torch.no_grad(): 
+                        if model_ema is not None:
+                            ema_output = model_ema.module(input).data.detach()
                     kd = kdloss(output, ema_output)
                     loss += args.mesa * kd
 
