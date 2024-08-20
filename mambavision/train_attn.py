@@ -870,8 +870,8 @@ def train_one_epoch(
                     with torch.no_grad():
                         if model_ema is not None: # modify
                             ema_output = model_ema.module(input).data.detach()
-                    kd = kdloss(output, ema_output)
-                    loss += args.mesa * kd
+                            kd = kdloss(output, ema_output)
+                            loss += args.mesa * kd
 
         if not args.distributed:
             losses_m.update(loss.item(), input.size(0))
