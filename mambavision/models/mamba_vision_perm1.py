@@ -27,7 +27,7 @@ from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
 from einops import rearrange, repeat
 from .registry import register_pip_model
 from pathlib import Path
-
+from diffsort import DiffSortNet
 
 def _cfg(url='', **kwargs):
     return {'url': url,
@@ -202,6 +202,21 @@ def _load_checkpoint(model,
 
     _load_state_dict(model, state_dict, strict, logger)
     return checkpoint
+
+def diff_sort(x, order='ascending'): # expect [B, 49, 1]
+    cuda_device = x.device
+    vector_length = x.shape[1]
+    # Move the input tensor to CPU and convert to float32
+    x_cpu = x.to('cpu', dtype=torch.float32)
+    sorter = DiffSortNet('bitonic', vector_length, steepness=5).to('cpu')
+    if order == 'descending':
+        x_cpu = -1. * x_cpu
+    # Perform sorting on the CPU
+    _, permutation_matrices = sorter(x_cpu)
+    _, sorted_indices_cpu = torch.max(permutation_matrices, dim=-1)
+    # Move the sorted indices back to the original CUDA device, and convert to float16 if needed
+    sorted_indices = sorted_indices_cpu.to(cuda_device)
+    return sorted_indices
 
 
 class Downsample(nn.Module):
@@ -602,6 +617,33 @@ class MambaVisionLayer(nn.Module):
             return x
         return self.downsample(x)
 
+class ClassBlock(nn.Module):
+    def __init__(self, dim, norm_layer=nn.LayerNorm):
+        super().__init__()
+        # self.norm1 = norm_layer(dim)
+        self.norm2 = norm_layer(dim)
+        self.attn = MambaVisionLayer(dim) #MambaBlock(d_model=dim)
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            trunc_normal_(m.weight, std=.02)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
+        elif isinstance(m, nn.Conv2d):
+            fan_out = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+            fan_out //= m.groups
+            m.weight.data.normal_(0, math.sqrt(2.0 / fan_out))
+            if m.bias is not None:
+                m.bias.data.zero_()
+
+    def forward(self, x):
+        cls_embed = x[:, :1]
+        cls_embed = cls_embed + self.attn(x[:, :1])
+        return torch.cat([cls_embed, x[:, 1:]], dim=1)
 
 class MambaVision(nn.Module):
     """
@@ -624,6 +666,7 @@ class MambaVision(nn.Module):
                  attn_drop_rate=0.,
                  layer_scale=None,
                  layer_scale_conv=None,
+                 norm_layer=nn.LayerNorm,
                  **kwargs):
         """
         Args:
@@ -646,6 +689,7 @@ class MambaVision(nn.Module):
         super().__init__()
         num_features = int(dim * 2 ** (len(depths) - 1))
         self.num_classes = num_classes
+        self.num_stages = len(depths)
         self.patch_embed = PatchEmbed(in_chans=in_chans, in_dim=in_dim, dim=dim)
         self.drop_path_rate = drop_path_rate
         dpr = [x.item() for x in torch.linspace(0, self.drop_path_rate, sum(depths))]
@@ -673,6 +717,17 @@ class MambaVision(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d(1)
         self.head = nn.Linear(num_features, num_classes) if num_classes > 0 else nn.Identity()
         self.apply(self._init_weights)
+        
+        post_layers = ['ca']
+        self.embed_dims = dim * 2**(len(depths) - 1)
+        self.keys = nn.Parameter(torch.randn(1, self.embed_dims))  # Learnable keys
+        self.post_network = nn.ModuleList([
+            ClassBlock(
+                dim = self.embed_dims, 
+                norm_layer=norm_layer,
+                cm_type='mlp') # Change this to run EinFFT based Channel Mixer, cm_type='EinFFT'
+            for _ in range(len(post_layers))
+        ])
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -693,17 +748,61 @@ class MambaVision(nn.Module):
     def no_weight_decay_keywords(self):
         return {'rpb'}
 
+    def forward_cls(self, x, H, W):
+        B, N, C = x.shape  # B = 128, N = 49, C = 448
+        # import ipdb; ipdb.set_trace()
+        if self.keys.size(0) != N:
+            self.keys = nn.Parameter(torch.randn(N, C).to(x.device))
+        # Compute self-attention
+        K = self.keys.unsqueeze(0).expand(B, -1, -1)  # Expand keys for batch size
+        attention_scores = torch.matmul(x, K.transpose(-1, -2)) / math.sqrt(C)  # [B, N, num_keys]
+        attention_scores = torch.nn.functional.softmax(attention_scores, dim=-1)  # [B, N, num_keys]
+        attention_output = torch.matmul(attention_scores, x)  # [B, N, C]
+        x = attention_output
+        #import ipdb; ipdb.set_trace()
+        cls_tokens = x.mean(dim=1, keepdim=True)  # [128, 1, 448]
+        dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
+        rearrange = diff_sort(dot_prod, order = 'ascending')
+        # print('rearrange image 0 corresponding each patch')
+        # print(rearrange[0])
+        rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
+        x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
+        x = torch.cat((cls_tokens, x_reordered), dim=1)  # [128, 50, 448]
+        for block in self.post_network:
+            x = block(x, H, W)
+        return x
+    
     def forward_features(self, x):
         import ipdb; ipdb.set_trace()
         # print('x_shape = ', x.shape)
+        _, _, H, W = x.shape
         x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
         for level in self.levels:
             x = level(x)
-        # torch.Size([128, 640, 7, 7])
-        x = self.norm(x)
-        x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
-        x = torch.flatten(x, 1) # torch.Size([128, 640])
+        x = self.norm(x) # torch.Size([128, 640, 7, 7])
+        # x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
+        # x = torch.flatten(x, 1) # torch.Size([128, 640])
+        
+        # Transform x to shape [128, 49, 640]
+        x = x.view(x.size(0), x.size(1), -1)  # Reshape to [128, 640, 49]
+        x = x.permute(0, 2, 1)  # Permute to [128, 49, 640]
+        
+        # output [128, 49, 640]
+        x = self.forward_cls(x, H, W)[:, 0]
+        norm = getattr(self, f"norm{self.num_stages}")
+        x = norm(x)
         return x
+    
+    # def forward_features(self, x):
+    #     import ipdb; ipdb.set_trace()
+    #     # print('x_shape = ', x.shape)
+    #     x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
+    #     for level in self.levels:
+    #         x = level(x)
+    #     x = self.norm(x) # torch.Size([128, 640, 7, 7])
+    #     x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
+    #     x = torch.flatten(x, 1) # torch.Size([128, 640])
+    #     return x
 
     def forward(self, x):
         x = self.forward_features(x)
