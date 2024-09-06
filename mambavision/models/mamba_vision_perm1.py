@@ -811,8 +811,9 @@ class MambaVision(nn.Module):
         # output [128, 49, 640]
         x = self.forward_cls(x)[:, 0]
         # norm = getattr(self, f"norm{self.num_stages}")
-        import ipdb; ipdb.set_trace()
-        x = self.norm(x)
+        # import ipdb; ipdb.set_trace()
+        layer_norm = nn.LayerNorm(x.size()[1:]).to(x.device)
+        x = layer_norm(x)
         return x
     
     # def forward_features(self, x):
@@ -828,6 +829,7 @@ class MambaVision(nn.Module):
 
     def forward(self, x):
         x = self.forward_features(x)
+        import ipdb; ipdb.set_trace()
         x = self.head(x)
         return x
 
