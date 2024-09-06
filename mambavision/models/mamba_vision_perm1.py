@@ -726,7 +726,10 @@ class MambaVision(nn.Module):
         self.post_network = nn.ModuleList([
             ClassBlock(
                 dim = self.embed_dims, 
-                norm_layer=norm_layer, depths=depths, num_heads=num_heads, window_size=window_size) 
+                norm_layer=norm_layer, 
+                depths=depths, 
+                num_heads=num_heads, 
+                window_size=window_size) 
                 for _ in range(len(post_layers))
         ])
 
@@ -774,7 +777,7 @@ class MambaVision(nn.Module):
         return x
     
     def forward_features(self, x):
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         # print('x_shape = ', x.shape)
         _, _, H, W = x.shape
         x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
