@@ -829,7 +829,7 @@ class MambaVision(nn.Module):
 
     def forward(self, x):
         x = self.forward_features(x)
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         x = self.head(x)
         return x
 
