@@ -811,6 +811,7 @@ class MambaVision(nn.Module):
         # output [128, 49, 640]
         x = self.forward_cls(x)[:, 0]
         # norm = getattr(self, f"norm{self.num_stages}")
+        import ipdb; ipdb.set_trace()
         x = self.norm(x)
         return x
     
