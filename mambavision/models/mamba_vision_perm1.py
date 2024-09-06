@@ -810,8 +810,8 @@ class MambaVision(nn.Module):
         
         # output [128, 49, 640]
         x = self.forward_cls(x)[:, 0]
-        norm = getattr(self, f"norm{self.num_stages}")
-        x = norm(x)
+        # norm = getattr(self, f"norm{self.num_stages}")
+        x = self.norm(x)
         return x
     
     # def forward_features(self, x):
