@@ -694,6 +694,7 @@ class MambaVision(nn.Module):
         return {'rpb'}
 
     def forward_features(self, x):
+        import ipdb; ipdb.set_trace()
         # print('x_shape = ', x.shape)
         x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
         for level in self.levels:
@@ -705,7 +706,6 @@ class MambaVision(nn.Module):
         return x
 
     def forward(self, x):
-        import ipdb; ipdb.set_trace()
         x = self.forward_features(x)
         x = self.head(x)
         return x
