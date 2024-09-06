@@ -752,7 +752,7 @@ class MambaVision(nn.Module):
     def no_weight_decay_keywords(self):
         return {'rpb'}
 
-    def forward_cls(self, x, H, W):
+    def forward_cls(self, x):
         B, N, C = x.shape  # B = 128, N = 49, C = 448
         # import ipdb; ipdb.set_trace()
         if self.keys.size(0) != N:
@@ -780,7 +780,6 @@ class MambaVision(nn.Module):
     def forward_features(self, x):
         # import ipdb; ipdb.set_trace()
         # print('x_shape = ', x.shape)
-        _, _, H, W = x.shape
         x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
         for level in self.levels:
             x = level(x)
@@ -793,7 +792,7 @@ class MambaVision(nn.Module):
         x = x.permute(0, 2, 1)  # Permute to [128, 49, 640]
         
         # output [128, 49, 640]
-        x = self.forward_cls(x, H, W)[:, 0]
+        x = self.forward_cls(x)[:, 0]
         norm = getattr(self, f"norm{self.num_stages}")
         x = norm(x)
         return x
