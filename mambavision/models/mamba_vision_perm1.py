@@ -724,9 +724,8 @@ class MambaVision(nn.Module):
         self.post_network = nn.ModuleList([
             ClassBlock(
                 dim = self.embed_dims, 
-                norm_layer=norm_layer,
-                cm_type='mlp') # Change this to run EinFFT based Channel Mixer, cm_type='EinFFT'
-            for _ in range(len(post_layers))
+                norm_layer=norm_layer) 
+                for _ in range(len(post_layers))
         ])
 
     def _init_weights(self, m):
