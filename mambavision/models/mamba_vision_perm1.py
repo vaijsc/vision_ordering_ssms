@@ -618,11 +618,13 @@ class MambaVisionLayer(nn.Module):
         return self.downsample(x)
 
 class ClassBlock(nn.Module):
-    def __init__(self, dim, norm_layer=nn.LayerNorm):
+    def __init__(self, dim, norm_layer, depths, num_heads, window_size):
         super().__init__()
         # self.norm1 = norm_layer(dim)
         self.norm2 = norm_layer(dim)
-        self.attn = MambaVisionLayer(dim) #MambaBlock(d_model=dim)
+        self.depths = depths
+        self.norm_layer = nn.LayerNorm
+        self.attn = MambaVisionLayer(dim, depth=1, num_heads=num_heads[len(depths) - 1], window_size= window_size[len(depths) - 1]) #MambaBlock(d_model=dim)
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
