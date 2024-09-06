@@ -772,7 +772,7 @@ class MambaVision(nn.Module):
         rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
         x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
         x = torch.cat((cls_tokens, x_reordered), dim=1)  # [128, 50, 448]
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         for block in self.post_network:
             x = block(x)
         return x
