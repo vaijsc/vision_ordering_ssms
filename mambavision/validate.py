@@ -17,7 +17,7 @@ import time
 from collections import OrderedDict
 from contextlib import suppress
 from functools import partial
-
+from fvcore.nn import FlopCountAnalysis, flop_count_table
 import torch
 import torch.nn as nn
 import torch.nn.parallel
@@ -27,6 +27,7 @@ from timm.layers import apply_test_time_pool, set_fast_norm
 from timm.models import create_model, load_checkpoint, is_model, list_models
 from timm.utils import accuracy, AverageMeter, natural_key, setup_default_logging, set_jit_fuser, \
     decay_batch_step, check_batch_size_retry, ParseKwargs
+# import time
 
 try:
     from apex import amp
@@ -200,6 +201,16 @@ def validate(args):
         scriptable=args.torchscript,
         **args.model_kwargs,
     )
+    # import ipdb; ipdb.set_trace()
+    # dummy_input = torch.randn(1, 3, 224, 224)  # Example for an image input
+
+    # # Calculate FLOPs
+    # flops = FlopCountAnalysis(model, dummy_input)
+
+    # # Print FLOPs and a detailed table
+    # print(f"Total FLOPs: {flops.total()} FLOPs")
+    # print(flop_count_table(flops))
+
     if args.num_classes is None:
         assert hasattr(model, 'num_classes'), 'Model must have `num_classes` attr if not set on cmd line/config.'
         args.num_classes = model.num_classes
@@ -288,6 +299,7 @@ def validate(args):
     top5 = AverageMeter()
 
     model.eval()
+    # start_time = time.time()
     with torch.no_grad():
         # warmup, reduce variability of first batch time, especially for comparing torchscript vs non
         input = torch.randn((args.batch_size,) + tuple(data_config['input_size'])).to(device)
@@ -342,6 +354,14 @@ def validate(args):
                         top5=top5
                     )
                 )
+    # end_time = time.time()
+
+    # Calculate throughput
+    # total_time = end_time - start_time
+    # total_samples = len(batch_idx) * 128
+    # throughput = total_samples / total_time
+
+    # print(f"Throughput: {throughput:.2f} samples/second")
 
     if real_labels is not None:
         # real labels mode replaces topk values at the end
