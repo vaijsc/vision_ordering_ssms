@@ -28,6 +28,7 @@ from einops import rearrange, repeat
 from .registry import register_pip_model
 from pathlib import Path
 from diffsort import DiffSortNet
+from mamba_ssm import Mamba
 
 def _cfg(url='', **kwargs):
     return {'url': url,
@@ -595,7 +596,7 @@ class MambaVisionLayer(nn.Module):
         self.window_size = window_size
 
     def forward(self, x):
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace() # torch.Size([128, 1, 640])
         _, _, H, W = x.shape
 
         if self.transformer_block:
@@ -618,14 +619,32 @@ class MambaVisionLayer(nn.Module):
             return x
         return self.downsample(x)
 
+class MambaLayer(nn.Module):
+    def __init__(self, dim, d_state=64, d_conv=4, expand=2):
+        super().__init__()
+        self.dim = dim
+        self.norm = nn.LayerNorm(dim)
+        self.mamba = Mamba(
+            d_model=dim,  # Model dimension d_model
+            d_state=d_state,  # SSM state expansion factor
+            d_conv=d_conv,  # Local convolution width
+            expand=expand  # Block expansion factor
+        )
+    def forward(self, x):
+        # print('x',x.shape)
+        B, L, C = x.shape
+        # print('x shape = ', x.shape)
+        x_norm = self.norm(x)
+        # print('x_norm shape = ', x_norm.shape)
+        x_mamba = self.mamba(x_norm)    
+        return x_mamba
+
 class ClassBlock(nn.Module):
-    def __init__(self, dim, norm_layer, depths, num_heads, window_size):
+    def __init__(self, dim, norm_layer=nn.LayerNorm):
         super().__init__()
         # self.norm1 = norm_layer(dim)
         self.norm2 = norm_layer(dim)
-        self.depths = depths
-        self.norm_layer = nn.LayerNorm
-        self.attn = MambaVisionLayer(dim, depth=1, num_heads=num_heads[len(depths) - 1], window_size= window_size[len(depths) - 1]) #MambaBlock(d_model=dim)
+        self.attn = MambaLayer(dim)
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -727,10 +746,7 @@ class MambaVision(nn.Module):
         self.post_network = nn.ModuleList([
             ClassBlock(
                 dim = self.embed_dims, 
-                norm_layer=norm_layer, 
-                depths=depths, 
-                num_heads=num_heads, 
-                window_size=window_size) 
+                norm_layer=norm_layer) 
                 for _ in range(len(post_layers))
         ])
 
