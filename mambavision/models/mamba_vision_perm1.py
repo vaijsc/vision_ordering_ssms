@@ -595,6 +595,7 @@ class MambaVisionLayer(nn.Module):
         self.window_size = window_size
 
     def forward(self, x):
+        import ipdb; ipdb.set_trace()
         _, _, H, W = x.shape
 
         if self.transformer_block:
