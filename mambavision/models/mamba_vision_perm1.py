@@ -726,7 +726,7 @@ class MambaVision(nn.Module):
         self.post_network = nn.ModuleList([
             ClassBlock(
                 dim = self.embed_dims, 
-                norm_layer=norm_layer) 
+                norm_layer=norm_layer, depths=depths, num_heads=num_heads, window_size=window_size) 
                 for _ in range(len(post_layers))
         ])
 
