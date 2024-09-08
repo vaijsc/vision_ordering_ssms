@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=mv_perm1
-#SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_perm1.txt
+#SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_perm1_1.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
 #SBATCH --nodelist=sdc2-hpc-dgx-a100-020

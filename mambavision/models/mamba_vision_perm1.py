@@ -27,7 +27,6 @@ from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
 from einops import rearrange, repeat
 from .registry import register_pip_model
 from pathlib import Path
-from diffsort import DiffSortNet
 from mamba_ssm import Mamba
 import warnings
 warnings.filterwarnings("ignore", message="Overwriting mamba_vision_", category=UserWarning)
@@ -206,21 +205,6 @@ def _load_checkpoint(model,
 
     _load_state_dict(model, state_dict, strict, logger)
     return checkpoint
-
-def diff_sort(x, order='ascending'): # expect [B, 49, 1]
-    cuda_device = x.device
-    vector_length = x.shape[1]
-    # Move the input tensor to CPU and convert to float32
-    x_cpu = x.to('cpu', dtype=torch.float32)
-    sorter = DiffSortNet('bitonic', vector_length, steepness=5).to('cpu')
-    if order == 'descending':
-        x_cpu = -1. * x_cpu
-    # Perform sorting on the CPU
-    _, permutation_matrices = sorter(x_cpu)
-    _, sorted_indices_cpu = torch.max(permutation_matrices, dim=-1)
-    # Move the sorted indices back to the original CUDA device, and convert to float16 if needed
-    sorted_indices = sorted_indices_cpu.to(cuda_device)
-    return sorted_indices
 
 
 class Downsample(nn.Module):
@@ -786,9 +770,11 @@ class MambaVision(nn.Module):
         #import ipdb; ipdb.set_trace()
         cls_tokens = x.mean(dim=1, keepdim=True)  # [128, 1, 448]
         dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
-        rearrange = diff_sort(dot_prod, order = 'ascending')
-        # print('rearrange image 0 corresponding each patch')
-        # print(rearrange[0])
+
+        # Use torch.topk to get top-k values and indices per sample in the batch
+        # Here, k = 49 to get the full rearrangement, but you can choose a different k if needed
+        # import ipdb; ipdb.set_trace()
+        _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
         rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
         x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
         x = torch.cat((cls_tokens, x_reordered), dim=1)  # [128, 50, 448]
