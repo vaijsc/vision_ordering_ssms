@@ -770,7 +770,6 @@ class MambaVision(nn.Module):
         #import ipdb; ipdb.set_trace()
         cls_tokens = x.mean(dim=1, keepdim=True)  # [128, 1, 448]
         dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
-
         # Use torch.topk to get top-k values and indices per sample in the batch
         # Here, k = 49 to get the full rearrangement, but you can choose a different k if needed
         # import ipdb; ipdb.set_trace()
