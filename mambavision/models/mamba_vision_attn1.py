@@ -453,6 +453,18 @@ class Attention(nn.Module):
             attn = self.attn_drop(attn)
             x = attn @ v
         import ipdb; ipdb.set_trace()
+        # x torch.Size([128, 8, 196, 40])
+        # q  torch.Size([128, 8, 196, 40])
+        # k torch.Size([128, 8, 196, 40])
+        # v torch.Size([128, 8, 196, 40])
+        q = q * self.scale
+        attn = q @ k.transpose(-2, -1)
+        attn = attn.softmax(dim=-1)
+        # calculate the vector of the attention matrix to sum of multiple rows
+        s = torch.sum(attn, dim=2)
+        
+
+
         x = x.transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
