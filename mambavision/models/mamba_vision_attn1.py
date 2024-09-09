@@ -465,6 +465,7 @@ class Attention(nn.Module):
         v_norm = torch.norm(v, dim=-1)
         result = sigma * v_norm
         _, sorted_indices_asc = torch.topk(result, k=sigma.shape[-1], dim=-1, largest=False)
+        print('sorted_indices_asc: ', sorted_indices_asc)
         # Expanding sorted_indices_asc to match the shape of x for gathering
         sorted_indices_asc_expanded = sorted_indices_asc.unsqueeze(-1).expand(-1, -1, -1, x.size(-1))
         # Sorting x along the 196 dimension based on sorted_indices_asc
