@@ -452,7 +452,7 @@ class Attention(nn.Module):
             attn = attn.softmax(dim=-1)
             attn = self.attn_drop(attn)
             x = attn @ v
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         # x torch.Size([128, 8, 196, 40])
         # q  torch.Size([128, 8, 196, 40])
         # k torch.Size([128, 8, 196, 40])
