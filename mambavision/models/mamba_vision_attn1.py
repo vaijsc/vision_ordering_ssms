@@ -461,10 +461,15 @@ class Attention(nn.Module):
         attn = q @ k.transpose(-2, -1)
         attn = attn.softmax(dim=-1)
         # calculate the vector of the attention matrix to sum of multiple rows
-        s = torch.sum(attn, dim=2)
-        
-
-
+        sigma = torch.sum(attn, dim=2)
+        v_norm = torch.norm(v, dim=-1)
+        result = sigma * v_norm
+        _, sorted_indices_asc = torch.topk(result, k=sigma.shape[-1], dim=-1, largest=False)
+        # Expanding sorted_indices_asc to match the shape of x for gathering
+        sorted_indices_asc_expanded = sorted_indices_asc.unsqueeze(-1).expand(-1, -1, -1, x.size(-1))
+        # Sorting x along the 196 dimension based on sorted_indices_asc
+        x_sorted = torch.gather(x, dim=2, index=sorted_indices_asc_expanded)
+        x = x_sorted
         x = x.transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
@@ -677,7 +682,7 @@ class MambaVision(nn.Module):
                                      downsample=(i < 3),
                                      layer_scale=layer_scale,
                                      layer_scale_conv=layer_scale_conv,
-                                     transformer_blocks=[0],
+                                     transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
                                      )
             self.levels.append(level)
         self.norm = nn.BatchNorm2d(num_features)
