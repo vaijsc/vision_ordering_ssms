@@ -452,12 +452,11 @@ class Attention(nn.Module):
             attn = attn.softmax(dim=-1)
             attn = self.attn_drop(attn)
             x = attn @ v
-
+        import ipdb; ipdb.set_trace()
         x = x.transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
         return x
-
 
 class Block(nn.Module):
     def __init__(self, 
