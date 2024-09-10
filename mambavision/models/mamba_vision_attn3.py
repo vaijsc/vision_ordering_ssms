@@ -575,6 +575,67 @@ class Block(nn.Module):
         x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
         return x
 
+class Block_reorder(nn.Module):
+    def __init__(self, 
+                 dim, 
+                 num_heads, 
+                 counter, 
+                 transformer_blocks, 
+                 mlp_ratio=4., 
+                 qkv_bias=False, 
+                 qk_scale=False, 
+                 drop=0., 
+                 attn_drop=0.,
+                 drop_path=0., 
+                 act_layer=nn.GELU, 
+                 norm_layer=nn.LayerNorm, 
+                 Mlp_block=Mlp,
+                 layer_scale=None,
+                 depth=0
+                 ):
+        super().__init__()
+        self.depth=depth
+        self.norm1 = norm_layer(dim)
+        if counter in transformer_blocks:
+            if counter == (self.depth//2 + 1 if self.depth %2 !=0 else self.depth //2):
+                self.mixer = Attention_reorder(
+                dim,
+                num_heads=num_heads,
+                qkv_bias=qkv_bias,
+                qk_norm=qk_scale,
+                attn_drop=attn_drop,
+                proj_drop=drop,
+                norm_layer=norm_layer,
+            )
+            else:
+                self.mixer = Attention(
+                dim,
+                num_heads=num_heads,
+                qkv_bias=qkv_bias,
+                qk_norm=qk_scale,
+                attn_drop=attn_drop,
+                proj_drop=drop,
+                norm_layer=norm_layer,
+            )
+        else:
+            self.mixer = MambaVisionMixer(d_model=dim, 
+                                          d_state=8,  
+                                          d_conv=3,    
+                                          expand=1
+                                          )
+
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.norm2 = norm_layer(dim)
+        mlp_hidden_dim = int(dim * mlp_ratio)
+        self.mlp = Mlp_block(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+        use_layer_scale = layer_scale is not None and type(layer_scale) in [int, float]
+        self.gamma_1 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
+        self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
+
+    def forward(self, x):
+        x = x + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x)))
+        x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
+        return x
 
 class MambaVisionLayer(nn.Module):
     """
@@ -669,6 +730,101 @@ class MambaVisionLayer(nn.Module):
             return x
         return self.downsample(x)
 
+class MambaVisionLayer_reorder(nn.Module):
+    """
+    MambaVision layer"
+    """
+
+    def __init__(self,
+                 dim,
+                 depth,
+                 num_heads,
+                 window_size,
+                 conv=False,
+                 downsample=True,
+                 mlp_ratio=4.,
+                 qkv_bias=True,
+                 qk_scale=None,
+                 drop=0.,
+                 attn_drop=0.,
+                 drop_path=0.,
+                 layer_scale=None,
+                 layer_scale_conv=None,
+                 transformer_blocks = [],
+    ):
+        """
+        Args:
+            dim: feature size dimension.
+            depth: number of layers in each stage.
+            window_size: window size in each stage.
+            conv: bool argument for conv stage flag.
+            downsample: bool argument for down-sampling.
+            mlp_ratio: MLP ratio.
+            num_heads: number of heads in each stage.
+            qkv_bias: bool argument for query, key, value learnable bias.
+            qk_scale: bool argument to scaling query, key.
+            drop: dropout rate.
+            attn_drop: attention dropout rate.
+            drop_path: drop path rate.
+            norm_layer: normalization layer.
+            layer_scale: layer scaling coefficient.
+            layer_scale_conv: conv layer scaling coefficient.
+            transformer_blocks: list of transformer blocks.
+        """
+
+        super().__init__()
+        self.conv = conv
+        self.transformer_block = False
+        if conv:
+            self.blocks = nn.ModuleList([ConvBlock(dim=dim,
+                                                   drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                                   layer_scale=layer_scale_conv)
+                                                   for i in range(depth)])
+            self.transformer_block = False
+        else:
+            self.blocks = nn.ModuleList([Block_reorder(dim=dim,
+                                               counter=i, 
+                                               transformer_blocks=transformer_blocks,
+                                               num_heads=num_heads,
+                                               mlp_ratio=mlp_ratio,
+                                               qkv_bias=qkv_bias,
+                                               qk_scale=qk_scale,
+                                               drop=drop,
+                                               attn_drop=attn_drop,
+                                               drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                               layer_scale=layer_scale,
+                                               depth=depth)
+                                               for i in range(depth)])
+            
+            self.transformer_block = True
+
+        self.downsample = None if not downsample else Downsample(dim=dim)
+        self.do_gt = False
+        self.window_size = window_size
+
+    def forward(self, x):
+        _, _, H, W = x.shape
+
+        if self.transformer_block:
+            pad_r = (self.window_size - W % self.window_size) % self.window_size
+            pad_b = (self.window_size - H % self.window_size) % self.window_size
+            if pad_r > 0 or pad_b > 0:
+                x = torch.nn.functional.pad(x, (0,pad_r,0,pad_b))
+                _, _, Hp, Wp = x.shape
+            else:
+                Hp, Wp = H, W
+            x = window_partition(x, self.window_size)
+
+        for _, blk in enumerate(self.blocks):
+            x = blk(x)
+        if self.transformer_block:
+            x = window_reverse(x, self.window_size, Hp, Wp)
+            if pad_r > 0 or pad_b > 0:
+                x = x[:, :, :H, :W].contiguous()
+        if self.downsample is None:
+            return x
+        return self.downsample(x)
+
 
 class MambaVision(nn.Module):
     """
@@ -719,7 +875,25 @@ class MambaVision(nn.Module):
         self.levels = nn.ModuleList()
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
-            level = MambaVisionLayer(dim=int(dim * 2 ** i),
+            if i == 2:
+                level = MambaVisionLayer_reorder(dim=int(dim * 2 ** i),
+                                     depth=depths[i],
+                                     num_heads=num_heads[i],
+                                     window_size=window_size[i],
+                                     mlp_ratio=mlp_ratio,
+                                     qkv_bias=qkv_bias,
+                                     qk_scale=qk_scale,
+                                     conv=conv,
+                                     drop=drop_rate,
+                                     attn_drop=attn_drop_rate,
+                                     drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
+                                     downsample=(i < 3),
+                                     layer_scale=layer_scale,
+                                     layer_scale_conv=layer_scale_conv,
+                                     transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
+                                     )
+            else:
+                level = MambaVisionLayer(dim=int(dim * 2 ** i),
                                      depth=depths[i],
                                      num_heads=num_heads[i],
                                      window_size=window_size[i],
