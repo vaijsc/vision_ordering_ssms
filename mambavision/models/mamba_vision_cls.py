@@ -748,10 +748,22 @@ class MambaVision_LastStage(nn.Module):
         self.window_size = window_size
 
     def forward(self, x):
-        import ipdb; ipdb.set_trace()
-        _, _, H, W = x.shape
-        x = window_partition(x, self.window_size)
+        # import ipdb; ipdb.set_trace()
+        B, C, H, W = x.shape
+
+        # x torch.Size([128, 80, 56, 56])
+        # Step 1: Reshape x to [B, C, H*W] -> [128, 80, 56*56]
+        x = x.view(B, C, H * W)
+
+        # Step 2: Create the class token with shape [B, C, 1] -> [128, 80, 1]
+        cls_token = torch.mean(x, dim=2, keepdim=True)  # Example initialization, can be custom
+
+        # Step 3: Concatenate class token with x -> [B, C, 1 + H*W] -> [128, 80, 1 + 3136]
+        x = torch.cat([cls_token, x], dim=2)
+
+
         if self.transformer_block:
+            x = x.view(B, C, H, W)
             pad_r = (self.window_size - W % self.window_size) % self.window_size
             pad_b = (self.window_size - H % self.window_size) % self.window_size
             if pad_r > 0 or pad_b > 0:
@@ -759,13 +771,7 @@ class MambaVision_LastStage(nn.Module):
                 _, _, Hp, Wp = x.shape
             else:
                 Hp, Wp = H, W
-
-        
-        # Step 1: Add up the class token in the first Block_ssms_reorder
-        # x torch.Size([128, 80, 56, 56])
-        cls_tokens = x[:, :1]  # Assuming the first token is the class token
-        
-        x = torch.cat([cls_tokens, x], dim=1)
+            x = window_partition(x, self.window_size)
 
         # Step 2: Pass the concatenated tensor through the first two Block_ssms_reorder blocks
         for i, blk in enumerate(self.blocks):
@@ -773,14 +779,14 @@ class MambaVision_LastStage(nn.Module):
                 x = blk(x)
             if i == (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1):  # After the second Block_ssms_reorder, we split the class token
                 # Step 3: Split class token and rearrange the sequence
-                cls_tokens, x = torch.split(x, [1, x.size(1) - 1], dim=1)
+                cls_token, x = torch.split(x, [1, x.size(2) - 1], dim=2)
                 #x = rearrange_input_sequence(x, cls_token)  # Rearrange based on class token
-                dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [128, 49]
+                dot_prod = torch.matmul(x, cls_token.transpose(1, 2)).squeeze(2)  # [128, 49]
 
                 # Use torch.topk to get top-k values and indices per sample in the batch
-                # Here, k = 49 to get the full rearrangement, but you can choose a different k if needed
-                # import ipdb; ipdb.set_trace()
-                _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
+               
+                import ipdb; ipdb.set_trace()
+                _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[2], dim=1)  
                 # import ipdb; ipdb.set_trace()
                 # print('rearrange = ', rearrange[0, :])
                 # Expand rearrange to match the dimensions of the original tensor
