@@ -781,11 +781,11 @@ class MambaVision_LastStage(nn.Module):
                 # Step 3: Split class token and rearrange the sequence
                 cls_token, x = torch.split(x, [1, x.size(2) - 1], dim=2)
                 #x = rearrange_input_sequence(x, cls_token)  # Rearrange based on class token
+                import ipdb; ipdb.set_trace()
                 dot_prod = torch.matmul(x, cls_token.transpose(1, 2)).squeeze(2)  # [128, 49]
 
                 # Use torch.topk to get top-k values and indices per sample in the batch
-               
-                import ipdb; ipdb.set_trace()
+        
                 _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[2], dim=1)  
                 # import ipdb; ipdb.set_trace()
                 # print('rearrange = ', rearrange[0, :])
