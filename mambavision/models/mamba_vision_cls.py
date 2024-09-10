@@ -234,6 +234,7 @@ class Downsample(nn.Module):
         return x
 
 
+
 class PatchEmbed(nn.Module):
     """
     Patch embedding block"
@@ -504,6 +505,47 @@ class Block(nn.Module):
         self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
 
     def forward(self, x):
+        import ipdb; ipdb.set_trace()
+        x = x + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x)))
+        x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
+        return x
+
+class Block_cls_reorder(nn.Module):
+    def __init__(self, 
+                 dim, 
+                 num_heads, 
+                 counter, 
+                 transformer_blocks, 
+                 mlp_ratio=4., 
+                 qkv_bias=False, 
+                 qk_scale=False, 
+                 drop=0., 
+                 attn_drop=0.,
+                 drop_path=0., 
+                 act_layer=nn.GELU, 
+                 norm_layer=nn.LayerNorm, 
+                 Mlp_block=Mlp,
+                 layer_scale=None,
+                 ):
+        super().__init__()
+        self.norm1 = norm_layer(dim)
+        self.mixer = MambaVisionMixer(d_model=dim, 
+                                        d_state=8,  
+                                        d_conv=3,    
+                                        expand=1
+                                        )
+
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.norm2 = norm_layer(dim)
+        mlp_hidden_dim = int(dim * mlp_ratio)
+        self.mlp = Mlp_block(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+        use_layer_scale = layer_scale is not None and type(layer_scale) in [int, float]
+        self.gamma_1 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
+        self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
+
+    def forward(self, x):
+        import ipdb; ipdb.set_trace()
+        cls_embed = x[:, :1]
         x = x + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x)))
         x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
         return x
