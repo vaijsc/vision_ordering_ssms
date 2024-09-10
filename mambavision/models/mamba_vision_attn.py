@@ -27,6 +27,7 @@ from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
 from einops import rearrange, repeat
 from .registry import register_pip_model
 from pathlib import Path
+# ignore warning
 import warnings
 warnings.filterwarnings("ignore", message="Overwriting mamba_vision_", category=UserWarning)
 
