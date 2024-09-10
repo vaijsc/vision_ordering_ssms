@@ -381,18 +381,26 @@ class MambaVisionMixer(nn.Module):
         hidden_states: (B, L, D)
         Returns: same shape as hidden_states
         """
-        _, seqlen, _ = hidden_states.shape
-        xz = self.in_proj(hidden_states)
-        xz = rearrange(xz, "b l d -> b d l")
-        x, z = xz.chunk(2, dim=1)
-        A = -torch.exp(self.A_log.float())
-        x = F.silu(F.conv1d(input=x, weight=self.conv1d_x.weight, bias=self.conv1d_x.bias, padding='same', groups=self.d_inner//2))
-        z = F.silu(F.conv1d(input=z, weight=self.conv1d_z.weight, bias=self.conv1d_z.bias, padding='same', groups=self.d_inner//2))
-        x_dbl = self.x_proj(rearrange(x, "b d l -> (b l) d"))
-        dt, B, C = torch.split(x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1)
-        dt = rearrange(self.dt_proj(dt), "(b l) d -> b d l", l=seqlen)
-        B = rearrange(B, "(b l) dstate -> b dstate l", l=seqlen).contiguous()
-        C = rearrange(C, "(b l) dstate -> b dstate l", l=seqlen).contiguous()
+        _, seqlen, _ = hidden_states.shape # torch.Size([128, 196, 320]), seqlen = 196
+        xz = self.in_proj(hidden_states) # torch.Size([128, 196, 320])
+        xz = rearrange(xz, "b l d -> b d l") # torch.Size([128, 320, 196])
+        x, z = xz.chunk(2, dim=1) # x torch.Size([128, 160, 196]) ; z torch.Size([128, 160, 196])
+        A = -torch.exp(self.A_log.float()) # torch.Size([160, 8])
+        x = F.silu(F.conv1d(input=x, weight=self.conv1d_x.weight, bias=self.conv1d_x.bias, padding='same', groups=self.d_inner//2)) # torch.Size([128, 160, 196])
+        z = F.silu(F.conv1d(input=z, weight=self.conv1d_z.weight, bias=self.conv1d_z.bias, padding='same', groups=self.d_inner//2)) # torch.Size([128, 160, 196])
+        x_dbl = self.x_proj(rearrange(x, "b d l -> (b l) d")) # torch.Size([25088, 160]) -> torch.Size([25088, 36])
+        
+        # dt torch.Size([25088, 20])
+        # B torch.Size([25088, 8])
+        # C torch.Size([25088, 8])
+        dt, B, C = torch.split(x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1) # 
+        
+        dt = rearrange(self.dt_proj(dt), "(b l) d -> b d l", l=seqlen) # torch.Size([128, 160, 196])
+
+        B = rearrange(B, "(b l) dstate -> b dstate l", l=seqlen).contiguous() # torch.Size([128, 8, 196])
+        
+        C = rearrange(C, "(b l) dstate -> b dstate l", l=seqlen).contiguous() # torch.Size([128, 8, 196])
+        # y torch.Size([128, 160, 196])
         y = selective_scan_fn(x, 
                               dt, 
                               A, 
@@ -404,10 +412,10 @@ class MambaVisionMixer(nn.Module):
                               delta_softplus=True, 
                               return_last_state=None)
         
-        y = torch.cat([y, z], dim=1)
-        y = rearrange(y, "b d l -> b l d")
-        out = self.out_proj(y)
-        return out
+        y = torch.cat([y, z], dim=1) # y torch.Size([128, 320, 196])
+        y = rearrange(y, "b d l -> b l d") # torch.Size([128, 196, 320])
+        out = self.out_proj(y) # torch.Size([128, 196, 320])
+        return out # torch.Size([128, 196, 320])
     
 
 class Attention(nn.Module):
@@ -740,8 +748,9 @@ class MambaVision_LastStage(nn.Module):
         self.window_size = window_size
 
     def forward(self, x):
+        import ipdb; ipdb.set_trace()
         _, _, H, W = x.shape
-
+        x = window_partition(x, self.window_size)
         if self.transformer_block:
             pad_r = (self.window_size - W % self.window_size) % self.window_size
             pad_b = (self.window_size - H % self.window_size) % self.window_size
@@ -750,9 +759,8 @@ class MambaVision_LastStage(nn.Module):
                 _, _, Hp, Wp = x.shape
             else:
                 Hp, Wp = H, W
-            x = window_partition(x, self.window_size)
 
-        import ipdb; ipdb.set_trace()
+        
         # Step 1: Add up the class token in the first Block_ssms_reorder
         # x torch.Size([128, 80, 56, 56])
         cls_tokens = x[:, :1]  # Assuming the first token is the class token
