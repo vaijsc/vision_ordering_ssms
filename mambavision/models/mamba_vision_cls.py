@@ -716,13 +716,11 @@ class MambaVision_LastStage(nn.Module):
                 if i <= (depth//2 if depth %2 !=0 else depth//2 -1):
                     block = Block_ssms_reorder(dim=dim, 
                                                mlp_ratio=mlp_ratio,
-                                               drop=drop,
-                                               attn_drop=attn_drop,
+                                               drop=drop,                                               
                                                drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
                                                layer_scale=layer_scale)
                 else:
                     block = Block_Attn_last(dim=dim,
-                                            counter=i, 
                                             transformer_blocks=transformer_blocks,
                                             num_heads=num_heads,
                                             mlp_ratio=mlp_ratio,
