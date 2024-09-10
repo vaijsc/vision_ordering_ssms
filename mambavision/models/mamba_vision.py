@@ -380,6 +380,7 @@ class MambaVisionMixer(nn.Module):
         hidden_states: (B, L, D)
         Returns: same shape as hidden_states
         """
+        import ipdb; ipdb.set_trace()
         _, seqlen, _ = hidden_states.shape
         xz = self.in_proj(hidden_states)
         xz = rearrange(xz, "b l d -> b d l")

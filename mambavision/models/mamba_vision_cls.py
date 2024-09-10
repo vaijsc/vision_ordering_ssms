@@ -525,25 +525,29 @@ class Block_ssms_reorder(nn.Module):
         super().__init__()
         self.norm1 = norm_layer(dim)
         self.mixer = MambaVisionMixer(d_model=dim, 
-                                        d_state=8,  
-                                        d_conv=3,    
-                                        expand=1
-                                        )
+                                      d_state=8,  
+                                      d_conv=3,    
+                                      expand=1)
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp_block(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
         use_layer_scale = layer_scale is not None and type(layer_scale) in [int, float]
-        self.gamma_1 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
-        self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
+        self.gamma_1 = nn.Parameter(layer_scale * torch.ones(dim)) if use_layer_scale else 1
+        self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim)) if use_layer_scale else 1
 
     def forward(self, x):
-        # import ipdb; ipdb.set_trace()
-        cls_embed = x[:, :1]
-        cls_embed = cls_embed + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x[:,:1])))
+        # Split class token and the rest of the input
+        cls_embed = x[:, :1]  # Class token (shape: [B, 1, dim])
+        token_embed = x[:, 1:]  # Other tokens (shape: [B, N, dim])
+
+        # Process the class token
+        cls_embed = cls_embed + self.drop_path(self.gamma_1 * self.mixer(self.norm1(cls_embed)))
         cls_embed = cls_embed + self.drop_path(self.gamma_2 * self.mlp(self.norm2(cls_embed)))
-        return torch.cat([cls_embed, x[:, 1:]], dim=1)
+
+        # Concatenate class token with the remaining input
+        return torch.cat([cls_embed, token_embed], dim=1)
 
 class Block_Attn_last(nn.Module):
     def __init__(self, 
@@ -750,7 +754,9 @@ class MambaVision_LastStage(nn.Module):
 
         import ipdb; ipdb.set_trace()
         # Step 1: Add up the class token in the first Block_ssms_reorder
+        # x torch.Size([128, 80, 56, 56])
         cls_tokens = x[:, :1]  # Assuming the first token is the class token
+        
         x = torch.cat([cls_tokens, x], dim=1)
 
         # Step 2: Pass the concatenated tensor through the first two Block_ssms_reorder blocks
