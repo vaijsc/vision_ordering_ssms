@@ -748,6 +748,7 @@ class MambaVision_LastStage(nn.Module):
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size)
 
+        import ipdb; ipdb.set_trace()
         # Step 1: Add up the class token in the first Block_ssms_reorder
         cls_tokens = x[:, :1]  # Assuming the first token is the class token
         x = torch.cat([cls_tokens, x], dim=1)
