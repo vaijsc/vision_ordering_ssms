@@ -682,7 +682,7 @@ class MambaVisionLayer(nn.Module):
 
 class MambaVision_LastStage(nn.Module):
     """
-    MambaVision layer"
+    MambaVision layer
     """
 
     def __init__(self,
@@ -700,65 +700,44 @@ class MambaVision_LastStage(nn.Module):
                  drop_path=0.,
                  layer_scale=None,
                  layer_scale_conv=None,
-                 transformer_blocks = [],
+                 transformer_blocks=[],
     ):
-        """
-        Args:
-            dim: feature size dimension.
-            depth: number of layers in each stage.
-            window_size: window size in each stage.
-            conv: bool argument for conv stage flag.
-            downsample: bool argument for down-sampling.
-            mlp_ratio: MLP ratio.
-            num_heads: number of heads in each stage.
-            qkv_bias: bool argument for query, key, value learnable bias.
-            qk_scale: bool argument to scaling query, key.
-            drop: dropout rate.
-            attn_drop: attention dropout rate.
-            drop_path: drop path rate.
-            norm_layer: normalization layer.
-            layer_scale: layer scaling coefficient.
-            layer_scale_conv: conv layer scaling coefficient.
-            transformer_blocks: list of transformer blocks.
-        """
-
         super().__init__()
         self.conv = conv
         self.transformer_block = False
+        self.depth = depth
         if conv:
             self.blocks = nn.ModuleList([ConvBlock(dim=dim,
                                                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
                                                    layer_scale=layer_scale_conv)
-                                                   for i in range(depth)])
-            self.transformer_block = False
+                                         for i in range(depth)])
         else:
             self.blocks = nn.ModuleList()
-            for i in range (depth):
-                if i <= (depth // 2 if depth %2 !=0 else depth//2 - 1):
+            for i in range(depth):
+                if i <= (depth//2 if depth %2 !=0 else depth//2 -1):
                     block = Block_ssms_reorder(dim=dim,
-                                counter=i, 
-                                mlp_ratio=mlp_ratio,
-                                drop=drop,
-                                attn_drop=attn_drop,
-                                drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-                                layer_scale=layer_scale)
+                                               counter=i, 
+                                               mlp_ratio=mlp_ratio,
+                                               drop=drop,
+                                               attn_drop=attn_drop,
+                                               drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                               layer_scale=layer_scale)
                 else:
                     block = Block_Attn_last(dim=dim,
-                            counter=i, 
-                            transformer_blocks=transformer_blocks,
-                            num_heads=num_heads,
-                            mlp_ratio=mlp_ratio,
-                            qkv_bias=qkv_bias,
-                            qk_scale=qk_scale,
-                            drop=drop,
-                            attn_drop=attn_drop,
-                            drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-                            layer_scale=layer_scale)
+                                            counter=i, 
+                                            transformer_blocks=transformer_blocks,
+                                            num_heads=num_heads,
+                                            mlp_ratio=mlp_ratio,
+                                            qkv_bias=qkv_bias,
+                                            qk_scale=qk_scale,
+                                            drop=drop,
+                                            attn_drop=attn_drop,
+                                            drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                            layer_scale=layer_scale)
                 self.blocks.append(block)
             self.transformer_block = True
 
         self.downsample = None if not downsample else Downsample(dim=dim)
-        self.do_gt = False
         self.window_size = window_size
 
     def forward(self, x):
@@ -768,22 +747,54 @@ class MambaVision_LastStage(nn.Module):
             pad_r = (self.window_size - W % self.window_size) % self.window_size
             pad_b = (self.window_size - H % self.window_size) % self.window_size
             if pad_r > 0 or pad_b > 0:
-                x = torch.nn.functional.pad(x, (0,pad_r,0,pad_b))
+                x = torch.nn.functional.pad(x, (0, pad_r, 0, pad_b))
                 _, _, Hp, Wp = x.shape
             else:
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size)
 
-        for _, blk in enumerate(self.blocks):
+        # Step 1: Add up the class token in the first Block_ssms_reorder
+        cls_tokens = x[:, :1]  # Assuming the first token is the class token
+        x = torch.cat([cls_tokens, x], dim=1)
+
+        # Step 2: Pass the concatenated tensor through the first two Block_ssms_reorder blocks
+        for i, blk in enumerate(self.blocks):
+            if isinstance(blk, Block_ssms_reorder):
+                x = blk(x)
+            if i == (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1):  # After the second Block_ssms_reorder, we split the class token
+                # Step 3: Split class token and rearrange the sequence
+                cls_tokens, x = torch.split(x, [1, x.size(1) - 1], dim=1)
+                #x = rearrange_input_sequence(x, cls_token)  # Rearrange based on class token
+                dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [128, 49]
+
+                # Use torch.topk to get top-k values and indices per sample in the batch
+                # Here, k = 49 to get the full rearrangement, but you can choose a different k if needed
+                # import ipdb; ipdb.set_trace()
+                _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
+                # import ipdb; ipdb.set_trace()
+                # print('rearrange = ', rearrange[0, :])
+                # Expand rearrange to match the dimensions of the original tensor
+                C = x.size(2)  # Number of channels, e.g., 448
+                rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
+                # print('rearrange image 0 corresponding each patch')
+                # print(rearrange[0])
+                rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
+                x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
+                x = x_reordered
+                break
+
+        # Step 4: Process the remaining blocks (e.g., attention blocks)
+        for blk in self.blocks[2:]:
             x = blk(x)
+
         if self.transformer_block:
             x = window_reverse(x, self.window_size, Hp, Wp)
             if pad_r > 0 or pad_b > 0:
                 x = x[:, :, :H, :W].contiguous()
+
         if self.downsample is None:
             return x
         return self.downsample(x)
-
 
 class MambaVision(nn.Module):
     """
@@ -834,7 +845,7 @@ class MambaVision(nn.Module):
         self.levels = nn.ModuleList()
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
-            if i ==2:
+            if i == 2:
                 level = MambaVisionLayer(dim=int(dim * 2 ** i),
                                         depth=depths[i],
                                         num_heads=num_heads[i],
@@ -852,6 +863,7 @@ class MambaVision(nn.Module):
                                         transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
                                         )
             else:
+                ## cls_token
                 level = MambaVision_LastStage(dim=int(dim * 2 ** i),
                                         depth=depths[i],
                                         num_heads=num_heads[i],
