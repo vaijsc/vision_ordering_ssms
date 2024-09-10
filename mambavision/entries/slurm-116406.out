@@ -1,0 +1,10 @@
+Current path is /home/anhnd81/.local/bin:/lustre/scratch/client/vinai/users/anhnd81/envs/mambavision/bin:/sw/software/miniconda3/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+Running
+0
+filter_bias_and_bn
+> [0;32m/lustre/scratch/client/vinai/users/anhnd81/workspace/mambavision_1/mambavision/models/mamba_vision_attn4.py[0m(943)[0;36mforward_features[0;34m()[0m
+[0;32m    942 [0;31m        [0;32mimport[0m [0mipdb[0m[0;34m;[0m [0mipdb[0m[0;34m.[0m[0mset_trace[0m[0;34m([0m[0;34m)[0m[0;34m[0m[0;34m[0m[0m
+[0m[0;32m--> 943 [0;31m        [0;32mfor[0m [0mlevel[0m [0;32min[0m [0mself[0m[0;34m.[0m[0mlevels[0m[0;34m:[0m[0;34m[0m[0;34m[0m[0m
+[0m[0;32m    944 [0;31m            [0mx[0m [0;34m=[0m [0mlevel[0m[0;34m([0m[0mx[0m[0;34m)[0m[0;34m[0m[0;34m[0m[0m
+[0m
+ipdb> 
