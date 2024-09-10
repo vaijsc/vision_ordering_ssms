@@ -548,8 +548,7 @@ class Block_ssms_reorder(nn.Module):
 class Block_Attn_last(nn.Module):
     def __init__(self, 
                  dim, 
-                 num_heads, 
-                 counter,  
+                 num_heads,   
                  mlp_ratio=4., 
                  qkv_bias=False, 
                  qk_scale=False, 
@@ -715,8 +714,7 @@ class MambaVision_LastStage(nn.Module):
             self.blocks = nn.ModuleList()
             for i in range(depth):
                 if i <= (depth//2 if depth %2 !=0 else depth//2 -1):
-                    block = Block_ssms_reorder(dim=dim,
-                                               counter=i, 
+                    block = Block_ssms_reorder(dim=dim, 
                                                mlp_ratio=mlp_ratio,
                                                drop=drop,
                                                attn_drop=attn_drop,
