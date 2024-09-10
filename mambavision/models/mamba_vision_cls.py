@@ -721,7 +721,6 @@ class MambaVision_LastStage(nn.Module):
                                                layer_scale=layer_scale)
                 else:
                     block = Block_Attn_last(dim=dim,
-                                            transformer_blocks=transformer_blocks,
                                             num_heads=num_heads,
                                             mlp_ratio=mlp_ratio,
                                             qkv_bias=qkv_bias,
