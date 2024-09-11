@@ -767,7 +767,7 @@ class MambaVision_LastStage(nn.Module):
             if i == (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1):  # After the second Block_ssms_reorder, we split the class token
                 # Step 3: Split class token and rearrange the sequence
                 import ipdb; ipdb.set_trace()
-                cls_token, x = torch.split(x, [x.size(1) - 1, 1], dim=1)
+                x, cls_token = torch.split(x, [x.size(1) - 1, 1], dim=1)
                 #x = rearrange_input_sequence(x, cls_token)  # Rearrange based on class token
                 # import ipdb; ipdb.set_trace()
                 dot_prod = torch.matmul(x, cls_token.transpose(1,2)).squeeze(2)  # torch.Size([128, 196])
