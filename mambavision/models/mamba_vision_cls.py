@@ -549,7 +549,7 @@ class Block_ssms_reorder(nn.Module):
         # Split class token and the rest of the input
         cls_embed = x[:, :1]  # Class token (shape: [B, 1, dim])
         token_embed = x[:, 1:]  # Other tokens (shape: [B, N, dim])
-
+        import ipdb; ipdb.set_trace()
         # Process the class token
         cls_embed = cls_embed + self.drop_path(self.gamma_1 * self.mixer(self.norm1(cls_embed)))
         cls_embed = cls_embed + self.drop_path(self.gamma_2 * self.mlp(self.norm2(cls_embed)))
@@ -768,6 +768,8 @@ class MambaVision_LastStage(nn.Module):
         for i, blk in enumerate(self.blocks):
             if isinstance(blk, Block_ssms_reorder):
                 x = blk(x)
+                print('x.shape = ', x.shape)
+                print('1')
             if i == (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1):  # After the second Block_ssms_reorder, we split the class token
                 # Step 3: Split class token and rearrange the sequence
                 cls_token, x = torch.split(x, [1, x.size(1) - 1], dim=1)
