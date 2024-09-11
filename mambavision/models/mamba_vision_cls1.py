@@ -713,6 +713,11 @@ class MambaVision_LastStage(nn.Module):
         self.conv = conv
         self.transformer_block = False
         self.depth = depth
+        self.dim = dim  # Store the dimensionality for later use
+
+        # Initialize learnable keys
+        self.keys = nn.Parameter(torch.randn(1, 1, dim))  # Learnable key for each patch
+        
         if conv:
             self.blocks = nn.ModuleList([ConvBlock(dim=dim,
                                                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
@@ -721,7 +726,7 @@ class MambaVision_LastStage(nn.Module):
         else:
             self.blocks = nn.ModuleList()
             for i in range(depth):
-                if i <= (depth//2 if depth %2 !=0 else depth//2 -1):
+                if i <= (depth//2 if depth % 2 != 0 else depth//2 - 1):
                     block = Block_reorder(dim=dim, 
                                         mlp_ratio=mlp_ratio,
                                         drop=drop,                                               
@@ -744,8 +749,8 @@ class MambaVision_LastStage(nn.Module):
         self.window_size = window_size
 
     def forward(self, x):
-        # import ipdb; ipdb.set_trace()
         _, _, H, W = x.shape
+        
         if self.transformer_block:
             pad_r = (self.window_size - W % self.window_size) % self.window_size
             pad_b = (self.window_size - H % self.window_size) % self.window_size
@@ -754,37 +759,41 @@ class MambaVision_LastStage(nn.Module):
                 _, _, Hp, Wp = x.shape
             else:
                 Hp, Wp = H, W
-            x = window_partition(x, self.window_size) # torch.Size([128, 196, 320])
+                
+            x = window_partition(x, self.window_size)  # Shape: [128, 196, 320]
+            
+            ### Step 1: Add learnable keys and compute softmax-attended patches
+            batch_size, num_patches, dim_x = x.shape  # Example: [128, 196, 320]
+
+            # Ensure the keys match the batch size and number of patches
+            keys = self.keys.expand(batch_size, num_patches, dim_x)  # Shape: [128, 196, 320]
+
+            # Step 2: Compute attention using softmax(XK^T/sqrt(dim))X
+            attn_score = torch.matmul(x, keys.transpose(1, 2)) / torch.sqrt(torch.tensor(dim_x, dtype=torch.float32))  # [128, 196, 196]
+            attn = torch.softmax(attn_score, dim=-1)  # [128, 196, 196]
+            
+            # Step 3: Apply attention to the input
+            x = torch.matmul(attn, x)  # Shape: [128, 196, 320]
+
+            ### Add class token logic
             cls_token = torch.mean(x, dim=1, keepdim=True)  # Example initialization, can be custom
-            # import ipdb; ipdb.set_trace()
-            # Step 3: Concatenate class token with x -> # torch.Size([128, 1 + 196, 320])
             x = torch.cat([x, cls_token], dim=1)
 
-        # Step 2: Pass the concatenated tensor through the first two Block_ssms_reorder blocks
+        # Step 4: Pass the concatenated tensor through the first two Block_ssms_reorder blocks
         for i, blk in enumerate(self.blocks):
             if isinstance(blk, Block):
                 x = blk(x)
-            if i == (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1):  # After the second Block_ssms_reorder, we split the class token
-                # Step 3: Split class token and rearrange the sequence
-                # import ipdb; ipdb.set_trace()
+            if i == (self.depth // 2 if self.depth % 2 != 0 else self.depth // 2 - 1):  # After second Block_ssms_reorder, split class token
                 x, cls_token = torch.split(x, [x.size(1) - 1, 1], dim=1)
-                #x = rearrange_input_sequence(x, cls_token)  # Rearrange based on class token
-                # import ipdb; ipdb.set_trace()
-                dot_prod = torch.matmul(x, cls_token.transpose(1,2)).squeeze(2)  # torch.Size([128, 196])
-                # Use torch.topk to get top-k values and indices per sample in the batch
-                _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  
-                # import ipdb; ipdb.set_trace()
-                # print('rearrange = ', rearrange[0, :])
-                # Expand rearrange to match the dimensions of the original tensor
-                C = x.size(2)  # Number of channels, e.g., 448
-                rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 196, 320]
-                # print('rearrange image 0 corresponding each patch')
-                # print(rearrange[0])
-                x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 196, 320]
+                dot_prod = torch.matmul(x, cls_token.transpose(1, 2)).squeeze(2)  # Shape: [128, 196]
+                _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)
+                C = x.size(2)  # Number of channels
+                rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # Shape: [128, 196, 320]
+                x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # Shape: [128, 196, 320]
                 x = x_reordered
                 break
 
-        # Step 4: Process the remaining blocks (e.g., attention blocks)
+        # Step 5: Process remaining blocks
         for blk in self.blocks[2:]:
             x = blk(x)
 
@@ -796,6 +805,7 @@ class MambaVision_LastStage(nn.Module):
         if self.downsample is None:
             return x
         return self.downsample(x)
+
 
 class MambaVision(nn.Module):
     """
