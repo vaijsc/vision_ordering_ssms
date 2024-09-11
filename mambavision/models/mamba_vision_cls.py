@@ -519,6 +519,40 @@ class Block(nn.Module):
         x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
         return x
 
+class Block_reorder(nn.Module):
+    def __init__(self, 
+                 dim, 
+                 mlp_ratio=4., 
+                 drop=0., 
+                 drop_path=0., 
+                 act_layer=nn.GELU, 
+                 norm_layer=nn.LayerNorm, 
+                 Mlp_block=Mlp,
+                 layer_scale=None,
+                 ):
+        super().__init__()
+        self.norm1 = norm_layer(dim)
+        self.mixer = MambaVisionMixer(d_model=dim, 
+                                        d_state=8,  
+                                        d_conv=3,    
+                                        expand=1
+                                        )
+
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.norm2 = norm_layer(dim)
+        mlp_hidden_dim = int(dim * mlp_ratio)
+        self.mlp = Mlp_block(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+        use_layer_scale = layer_scale is not None and type(layer_scale) in [int, float]
+        self.gamma_1 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
+        self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
+
+    def forward(self, x):
+        #import ipdb; ipdb.set_trace()
+        # x torch.Size([128, 196, 320])
+        x = x + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x)))
+        x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
+        return x
+
 class Block_Attn_last(nn.Module):
     def __init__(self, 
                  dim, 
@@ -688,11 +722,11 @@ class MambaVision_LastStage(nn.Module):
             self.blocks = nn.ModuleList()
             for i in range(depth):
                 if i <= (depth//2 if depth %2 !=0 else depth//2 -1):
-                    block = Block(dim=dim, 
-                                               mlp_ratio=mlp_ratio,
-                                               drop=drop,                                               
-                                               drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-                                               layer_scale=layer_scale)
+                    block = Block_reorder(dim=dim, 
+                                        mlp_ratio=mlp_ratio,
+                                        drop=drop,                                               
+                                        drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                        layer_scale=layer_scale)
                 else:
                     block = Block_Attn_last(dim=dim,
                                             num_heads=num_heads,
