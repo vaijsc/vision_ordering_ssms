@@ -713,6 +713,9 @@ class MambaVision_LastStage(nn.Module):
         self.conv = conv
         self.transformer_block = False
         self.depth = depth
+        # Initialize learnable keys
+        self.keys = nn.Parameter(torch.randn(1, 1, dim))  # Learnable key for each patch
+
         if conv:
             self.blocks = nn.ModuleList([ConvBlock(dim=dim,
                                                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
@@ -755,6 +758,20 @@ class MambaVision_LastStage(nn.Module):
             else:
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size) # torch.Size([128, 196, 320])
+
+            ### Step 1: Add learnable keys and compute softmax-attended patches
+            batch_size, num_patches, dim_x = x.shape  # Example: [128, 196, 320]
+
+            # Ensure the keys match the batch size and number of patches
+            keys = self.keys.expand(batch_size, num_patches, dim_x)  # Shape: [128, 196, 320]
+
+            # Step 2: Compute attention using softmax(XK^T/sqrt(dim))X
+            attn_score = torch.matmul(x, keys.transpose(1, 2)) / torch.sqrt(torch.tensor(dim_x, dtype=torch.float32))  # [128, 196, 196]
+            attn = torch.softmax(attn_score, dim=-1)  # [128, 196, 196]
+            
+            # Step 3: Apply attention to the input
+            x = torch.matmul(attn, x)  # Shape: [128, 196, 320]
+            
             cls_token = torch.mean(x, dim=1, keepdim=True)  # Example initialization, can be custom
             # import ipdb; ipdb.set_trace()
             # Step 3: Concatenate class token with x -> # torch.Size([128, 1 + 196, 320])
@@ -764,7 +781,7 @@ class MambaVision_LastStage(nn.Module):
         for i, blk in enumerate(self.blocks):
             if isinstance(blk, Block):
                 x = blk(x)
-            if i == (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1):  # After the second Block_ssms_reorder, we split the class token
+            if i == (0):  # After the second Block_ssms_reorder, we split the class token
                 # Step 3: Split class token and rearrange the sequence
                 # import ipdb; ipdb.set_trace()
                 x, cls_token = torch.split(x, [x.size(1) - 1, 1], dim=1)
@@ -782,8 +799,9 @@ class MambaVision_LastStage(nn.Module):
                 # print(rearrange[0])
                 x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 196, 320]
                 x = x_reordered
+            if i == (self.depth//2 if self.depth %2 != 0 else self.depth//2 - 1):
                 break
-
+                
         # Step 4: Process the remaining blocks (e.g., attention blocks)
         for blk in self.blocks[2:]:
             x = blk(x)
