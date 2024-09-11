@@ -760,7 +760,7 @@ class MambaVision_LastStage(nn.Module):
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size) # torch.Size([128, 196, 320])
             cls_token = torch.mean(x, dim=1, keepdim=True)  # Example initialization, can be custom
-            import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
             # Step 3: Concatenate class token with x -> # torch.Size([128, 1 + 196, 320])
             x = torch.cat([cls_token, x], dim=1)
 
