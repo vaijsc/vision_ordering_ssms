@@ -592,7 +592,7 @@ class MambaVisionLayer(nn.Module):
                 _, _, Hp, Wp = x.shape
             else:
                 Hp, Wp = H, W
-            x = window_partition(x, self.window_size)
+            x = window_partition(x, self.window_size) # torch.Size([128, 196, 320])
 
         for _, blk in enumerate(self.blocks):
             x = blk(x)
@@ -697,7 +697,7 @@ class MambaVision(nn.Module):
 
     def forward_features(self, x):
         # print('x_shape = ', x.shape)
-        x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
+        x = self.patch_embed(x) # torch.Size([128, 3, 224, 224]) -> torch.Size([128, 160, 28, 28])
         for level in self.levels:
             x = level(x)
         # torch.Size([128, 640, 7, 7])
