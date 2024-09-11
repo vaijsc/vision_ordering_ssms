@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name=mv_cls
-#SBATCH --error=/lustre/scratch/client/vinai/users/ducna22/workspace/mambavision_1/mambavision/result/mambaV_cls.txt
+#SBATCH --job-name=mv_cls1
+#SBATCH --error=/lustre/scratch/client/vinai/users/ducna22/workspace/mambavision_1/mambavision/result/mambaV_cls1.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
 #SBATCH --nodelist=sdc2-hpc-dgx-a100-006
@@ -31,14 +31,14 @@ echo $CUDA_VISIBLE_DEVICES
 DATA_PATH="/lustre/scratch/client/vinai/users/ducna22/data/imagenet"
 MODEL=mamba_vision_T
 BS=128
-EXP=Cls
-#EXP=Test # annotate this after finish debugging
+#EXP=Cls1
+EXP=Test # annotate this after finish debugging
 LR=8e-4
 WD=0.05
 WR_LR=1e-6
 DR=0.38
 MESA=0.25
-RUN_FILE="/lustre/scratch/client/vinai/users/ducna22/workspace/mambavision_1/mambavision/train_cls.py"
+RUN_FILE="/lustre/scratch/client/vinai/users/ducna22/workspace/mambavision_1/mambavision/train_cls1.py"
 torchrun --master_port 12352 --nproc_per_node=1 $RUN_FILE --mesa ${MESA} --input-size 3 224 224 --crop-pct=0.875 \
 --data_dir=$DATA_PATH --model $MODEL --amp --weight-decay ${WD} --drop-path ${DR} --batch-size $BS --tag $EXP --lr $LR --warmup-lr $WR_LR #\
 # --resume /lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/output/train/Original/20240817-001048-mamba_vision_T-224/checkpoint-308.pth.tar

@@ -40,7 +40,7 @@ import shutil
 from utils.datasets import imagenet_lmdb_dataset
 from tensorboard import TensorboardLogger
 #from models.mamba_vision_cls import *
-from models.mamba_vision_cls import *
+from models.mamba_vision_cls3 import *
 
 try:
     from apex import amp
