@@ -3,7 +3,7 @@
 #SBATCH --error=/lustre/scratch/client/vinai/users/ducna22/workspace/mambavision_1/mambavision/result/mambaV_cls3.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
-#SBATCH --nodelist=sdc2-hpc-dgx-a100-006
+#SBATCH --nodelist=sdc2-hpc-dgx-a100-007
 #SBATCH --mem-per-gpu=50G
 #SBATCH --cpus-per-gpu=40
 #SBATCH --partition=applied
