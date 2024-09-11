@@ -760,7 +760,7 @@ class MambaVision_LastStage(nn.Module):
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size) # torch.Size([128, 196, 320])
             cls_token = torch.mean(x, dim=1, keepdim=True)  # Example initialization, can be custom
-
+            import ipdb; ipdb.set_trace()
             # Step 3: Concatenate class token with x -> # torch.Size([128, 1 + 196, 320])
             x = torch.cat([cls_token, x], dim=1)
 
@@ -909,26 +909,12 @@ class MambaVision(nn.Module):
     def no_weight_decay_keywords(self):
         return {'rpb'}
 
-    # def forward_features(self, x):
-    #     # print('x_shape = ', x.shape)
-    #     x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
-    #     for level in self.levels:
-    #         x = level(x)
-    #     # torch.Size([128, 640, 7, 7])
-    #     x = self.norm(x)
-    #     x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
-    #     x = torch.flatten(x, 1) # torch.Size([128, 640])
-    #     return x
-
     def forward_features(self, x):
         # print('x_shape = ', x.shape)
         x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
-        
+        print(self.levels)
         for level in self.levels:
             x = level(x)
-        #cls_tokens = x.mean(dim=1, keepdim=True)
-        #x = torch.cat((cls_tokens, x), dim=1)
-        
         # torch.Size([128, 640, 7, 7])
         x = self.norm(x)
         x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
