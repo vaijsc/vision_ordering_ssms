@@ -910,7 +910,7 @@ class MambaVision(nn.Module):
     def forward_features(self, x):
         # print('x_shape = ', x.shape)
         x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
-        print(self.levels)
+        # print(self.levels)
         for level in self.levels:
             x = level(x)
         # torch.Size([128, 640, 7, 7])
