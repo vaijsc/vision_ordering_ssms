@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=mv_cls
-#SBATCH --error=/lustre/scratch/client/vinai/users/ducna22/workspace/mambavision_1/mambavision/result/mv.txt
+#SBATCH --error=/lustre/scratch/client/vinai/users/ducna22/workspace/mambavision_1/mambavision/result/mambaV_cls.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
 #SBATCH --nodelist=sdc2-hpc-dgx-a100-006
