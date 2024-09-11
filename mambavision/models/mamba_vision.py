@@ -581,7 +581,7 @@ class MambaVisionLayer(nn.Module):
         self.window_size = window_size
 
     def forward(self, x):
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         _, _, H, W = x.shape # torch.Size([128, 80, 56, 56])
 
         if self.transformer_block:
