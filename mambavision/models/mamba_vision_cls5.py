@@ -615,7 +615,6 @@ class MambaVisionLayer_reorder(nn.Module):
                  num_heads,
                  window_size,
                  conv=False,
-                 downsample=True,
                  mlp_ratio=4.,
                  qkv_bias=True,
                  qk_scale=None,
@@ -658,7 +657,6 @@ class MambaVisionLayer_reorder(nn.Module):
             self.indices = (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1)
             self.transformer_block = True
 
-        self.downsample = None if not downsample else Downsample(dim=dim)
         self.window_size = window_size
 
     def forward(self, x):
@@ -699,9 +697,6 @@ class MambaVisionLayer_reorder(nn.Module):
             if pad_r > 0 or pad_b > 0:
                 x = x[:, :, :H, :W].contiguous()
 
-        # Downsample if applicable
-        if self.downsample is None:
-            return x  # Return both x and class token
         return x
 
 
@@ -834,7 +829,7 @@ class MambaVision(nn.Module):
     def forward_features(self, x):
         # print('x_shape = ', x.shape)
         x = self.patch_embed(x) # torch.Size([128, 3, 224, 224]) -> torch.Size([128, 160, 28, 28])
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         for level in self.levels:
             x = level(x)
         # torch.Size([128, 640, 7, 7])
