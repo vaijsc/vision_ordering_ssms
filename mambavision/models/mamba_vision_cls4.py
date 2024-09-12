@@ -656,8 +656,6 @@ class MambaVisionLayer_reorder(nn.Module):
 
             # The first 4 blocks are MambaMixer, and the last 4 are Attention blocks
             self.indices = (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1)
-            self.mamba_mixer_blocks = self.blocks[:self.indices + 1]  # First 4 are MambaMixer
-            self.attention_blocks = self.blocks[self.indices + 1:]    # Last 4 are Attention
             self.transformer_block = True
 
         self.downsample = None if not downsample else Downsample(dim=dim)
@@ -678,29 +676,25 @@ class MambaVisionLayer_reorder(nn.Module):
             x = window_partition(x, self.window_size)
 
         # Apply MambaMixer blocks (first 4 blocks)
-        for blk in self.mamba_mixer_blocks:
+        for i, blk in enumerate(self.blocks):
+            if i == self.indices:  # Add class token before the first attention block (after 4 MambaMixer blocks)
+                cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim)
+                x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim)
+
+            # Pass through the block
             x = blk(x)
-
-        # Add class token before the attention blocks
-        cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim)
-        x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim)
-
-        # Pass through Attention blocks (next 4 blocks)
-        for blk in self.attention_blocks:
-            x = blk(x)
-
-        # After Attention, split cls_token and x
-        cls_tokens, x = x[:, :1, :], x[:, 1:, :]
-        import ipdb; ipdb.set_trace()
-        dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)
-        _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)
-        C = x.size(2)  # Number of channels
-        rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # Shape: [128, 196, 320]
-        x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # Shape: [128, 196, 320]
-        x = x_reordered
 
         # Window reverse if transformer block and restore original shape
         if self.transformer_block:
+            # After Attention, split cls_token and x
+            cls_tokens, x = x[:, :1, :], x[:, 1:, :]
+            # import ipdb; ipdb.set_trace()
+            dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)
+            _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)
+            C = x.size(2)  # Number of channels
+            rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # Shape: [128, 196, 320]
+            x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # Shape: [128, 196, 320]
+            x = x_reordered
             x = window_reverse(x, self.window_size, Hp, Wp)
             if pad_r > 0 or pad_b > 0:
                 x = x[:, :, :H, :W].contiguous()
@@ -823,6 +817,7 @@ class MambaVision(nn.Module):
     def forward_features(self, x):
         # print('x_shape = ', x.shape)
         x = self.patch_embed(x) # torch.Size([128, 3, 224, 224]) -> torch.Size([128, 160, 28, 28])
+        import ipdb; ipdb.set_trace()
         for level in self.levels:
             x = level(x)
         # torch.Size([128, 640, 7, 7])
