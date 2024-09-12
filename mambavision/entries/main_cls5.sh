@@ -3,7 +3,7 @@
 #SBATCH --error=/lustre/scratch/client/vinai/users/ducna22/workspace/mambavision_1/mambavision/result/mambaV_cls5.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
-#SBATCH --nodelist=sdc2-hpc-dgx-a100-006
+#SBATCH --nodelist=sdc2-hpc-dgx-a100-010
 #SBATCH --mem-per-gpu=50G
 #SBATCH --cpus-per-gpu=40
 #SBATCH --partition=applied
@@ -31,8 +31,8 @@ echo $CUDA_VISIBLE_DEVICES
 DATA_PATH="/lustre/scratch/client/vinai/users/ducna22/data/imagenet"
 MODEL=mamba_vision_T
 BS=128
-#EXP=Cls5
-EXP=Test # annotate this after finish debugging
+EXP=Cls5
+#EXP=Test # annotate this after finish debugging
 LR=8e-4
 WD=0.05
 WR_LR=1e-6
