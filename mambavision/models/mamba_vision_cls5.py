@@ -602,7 +602,114 @@ class MambaVisionLayer(nn.Module):
                 x = x[:, :, :H, :W].contiguous()
         if self.downsample is None:
             return x
+        return x
+
+class MambaVisionLayer_reorder(nn.Module):
+    """
+    MambaVision layer with class token and attention after MambaMixer.
+    """
+
+    def __init__(self,
+                 dim,
+                 depth,
+                 num_heads,
+                 window_size,
+                 conv=False,
+                 downsample=True,
+                 mlp_ratio=4.,
+                 qkv_bias=True,
+                 qk_scale=None,
+                 drop=0.,
+                 attn_drop=0.,
+                 drop_path=0.,
+                 layer_scale=None,
+                 layer_scale_conv=None,
+                 transformer_blocks=[],
+    ):
+        super().__init__()
+        self.conv = conv
+        self.transformer_block = False
+        self.depth = depth
+        # Initialize class token
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim))
+
+        # Separate MambaMixer and Attention blocks
+        if conv:
+            self.blocks = nn.ModuleList([ConvBlock(dim=dim,
+                                                   drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                                   layer_scale=layer_scale_conv)
+                                         for i in range(depth)])
+            self.transformer_block = False
+        else:
+            self.blocks = nn.ModuleList([Block(dim=dim,
+                                               counter=i, 
+                                               transformer_blocks=transformer_blocks,
+                                               num_heads=num_heads,
+                                               mlp_ratio=mlp_ratio,
+                                               qkv_bias=qkv_bias,
+                                               qk_scale=qk_scale,
+                                               drop=drop,
+                                               attn_drop=attn_drop,
+                                               drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                               layer_scale=layer_scale)
+                                         for i in range(depth)])
+
+            # The first 4 blocks are MambaMixer, and the last 4 are Attention blocks
+            self.indices = (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1)
+            self.mamba_mixer_blocks = self.blocks[:self.indices + 1]  # First 4 are MambaMixer
+            self.attention_blocks = self.blocks[self.indices + 1:]    # Last 4 are Attention
+            self.transformer_block = True
+
+        self.downsample = None if not downsample else Downsample(dim=dim)
+        self.window_size = window_size
+
+    def forward(self, x):
+        B, C, H, W = x.shape  # Get batch size and spatial dimensions
+
+        # Pad input to match window size if necessary
+        if self.transformer_block:
+            pad_r = (self.window_size - W % self.window_size) % self.window_size
+            pad_b = (self.window_size - H % self.window_size) % self.window_size
+            if pad_r > 0 or pad_b > 0:
+                x = torch.nn.functional.pad(x, (0, pad_r, 0, pad_b))
+                _, _, Hp, Wp = x.shape
+            else:
+                Hp, Wp = H, W
+            x = window_partition(x, self.window_size)
+
+        # Apply MambaMixer blocks (first 4 blocks)
+        for blk in self.mamba_mixer_blocks:
+            x = blk(x)
+
+        # Add class token before the attention blocks
+        cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim)
+        x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim)
+
+        # Pass through Attention blocks (next 4 blocks)
+        for blk in self.attention_blocks:
+            x = blk(x)
+
+        # After Attention, split cls_token and x
+        cls_tokens, x = x[:, :1, :], x[:, 1:, :]
+        # import ipdb; ipdb.set_trace()
+        dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)
+        _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)
+        C = x.size(2)  # Number of channels
+        rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # Shape: [128, 196, 320]
+        x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # Shape: [128, 196, 320]
+        x = x_reordered
+
+        # Window reverse if transformer block and restore original shape
+        if self.transformer_block:
+            x = window_reverse(x, self.window_size, Hp, Wp)
+            if pad_r > 0 or pad_b > 0:
+                x = x[:, :, :H, :W].contiguous()
+
+        # Downsample if applicable
+        if self.downsample is None:
+            return x  # Return both x and class token
         return self.downsample(x)
+
 
 
 class MambaVision(nn.Module):
@@ -654,22 +761,40 @@ class MambaVision(nn.Module):
         self.levels = nn.ModuleList()
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
-            level = MambaVisionLayer(dim=int(dim * 2 ** i),
-                                     depth=depths[i],
-                                     num_heads=num_heads[i],
-                                     window_size=window_size[i],
-                                     mlp_ratio=mlp_ratio,
-                                     qkv_bias=qkv_bias,
-                                     qk_scale=qk_scale,
-                                     conv=conv,
-                                     drop=drop_rate,
-                                     attn_drop=attn_drop_rate,
-                                     drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
-                                     downsample=(i < 3),
-                                     layer_scale=layer_scale,
-                                     layer_scale_conv=layer_scale_conv,
-                                     transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
-                                     )
+            if i == 2:
+                level = MambaVisionLayer_reorder(dim=int(dim * 2 ** i),
+                                        depth=depths[i],
+                                        num_heads=num_heads[i],
+                                        window_size=window_size[i],
+                                        mlp_ratio=mlp_ratio,
+                                        qkv_bias=qkv_bias,
+                                        qk_scale=qk_scale,
+                                        conv=conv,
+                                        drop=drop_rate,
+                                        attn_drop=attn_drop_rate,
+                                        drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
+                                        downsample=(i < 3),
+                                        layer_scale=layer_scale,
+                                        layer_scale_conv=layer_scale_conv,
+                                        transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
+                                        )
+            else:
+                level = MambaVisionLayer(dim=int(dim * 2 ** i),
+                                        depth=depths[i],
+                                        num_heads=num_heads[i],
+                                        window_size=window_size[i],
+                                        mlp_ratio=mlp_ratio,
+                                        qkv_bias=qkv_bias,
+                                        qk_scale=qk_scale,
+                                        conv=conv,
+                                        drop=drop_rate,
+                                        attn_drop=attn_drop_rate,
+                                        drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
+                                        downsample=(i < 3),
+                                        layer_scale=layer_scale,
+                                        layer_scale_conv=layer_scale_conv,
+                                        transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
+                                        )
             self.levels.append(level)
         self.norm = nn.BatchNorm2d(num_features)
         self.avgpool = nn.AdaptiveAvgPool2d(1)
