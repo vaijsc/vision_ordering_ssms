@@ -772,25 +772,8 @@ class MambaVision(nn.Module):
                                         layer_scale_conv=layer_scale_conv,
                                         transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
                                         )
-            elif i == 3:
-                level = MambaVisionLayer(dim=int(dim * 2 ** (i-1)), # change this 
-                                        depth=depths[i],
-                                        num_heads=num_heads[i],
-                                        window_size=window_size[i],
-                                        mlp_ratio=mlp_ratio,
-                                        qkv_bias=qkv_bias,
-                                        qk_scale=qk_scale,
-                                        conv=conv,
-                                        drop=drop_rate,
-                                        attn_drop=attn_drop_rate,
-                                        drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
-                                        downsample=(i < 3),
-                                        layer_scale=layer_scale,
-                                        layer_scale_conv=layer_scale_conv,
-                                        transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
-                                        )
             else:
-                MambaVisionLayer(dim=int(dim * 2 ** i),
+                level = MambaVisionLayer(dim=int(dim * 2 ** (i-1)), # change this 
                                         depth=depths[i],
                                         num_heads=num_heads[i],
                                         window_size=window_size[i],
