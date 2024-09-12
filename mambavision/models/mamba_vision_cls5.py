@@ -747,7 +747,7 @@ class MambaVision(nn.Module):
             layer_scale_conv: conv layer scaling coefficient.
         """
         super().__init__()
-        num_features = int(dim * 2 ** (len(depths) - 1))
+        num_features = int(dim * 2 ** (len(depths) - 2)) # change this 
         self.num_classes = num_classes
         self.patch_embed = PatchEmbed(in_chans=in_chans, in_dim=in_dim, dim=dim)
         self.drop_path_rate = drop_path_rate
@@ -756,7 +756,7 @@ class MambaVision(nn.Module):
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
             if i == 2:
-                level = MambaVisionLayer_reorder(dim=int(dim * 2 ** i),
+                level = MambaVisionLayer_reorder(dim=int(dim * 2 ** i), 
                                         depth=depths[i],
                                         num_heads=num_heads[i],
                                         window_size=window_size[i],
@@ -773,7 +773,7 @@ class MambaVision(nn.Module):
                                         transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
                                         )
             elif i == 3:
-                level = MambaVisionLayer(dim=int(dim * 2 ** (i-1)),
+                level = MambaVisionLayer(dim=int(dim * 2 ** (i-1)), # change this 
                                         depth=depths[i],
                                         num_heads=num_heads[i],
                                         window_size=window_size[i],
