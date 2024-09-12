@@ -234,6 +234,7 @@ class Downsample(nn.Module):
         return x
 
 
+
 class PatchEmbed(nn.Module):
     """
     Patch embedding block"
@@ -380,19 +381,26 @@ class MambaVisionMixer(nn.Module):
         hidden_states: (B, L, D)
         Returns: same shape as hidden_states
         """
-        # import ipdb; ipdb.set_trace()
-        _, seqlen, _ = hidden_states.shape
-        xz = self.in_proj(hidden_states)
-        xz = rearrange(xz, "b l d -> b d l")
-        x, z = xz.chunk(2, dim=1)
-        A = -torch.exp(self.A_log.float())
-        x = F.silu(F.conv1d(input=x, weight=self.conv1d_x.weight, bias=self.conv1d_x.bias, padding='same', groups=self.d_inner//2))
-        z = F.silu(F.conv1d(input=z, weight=self.conv1d_z.weight, bias=self.conv1d_z.bias, padding='same', groups=self.d_inner//2))
-        x_dbl = self.x_proj(rearrange(x, "b d l -> (b l) d"))
-        dt, B, C = torch.split(x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1)
-        dt = rearrange(self.dt_proj(dt), "(b l) d -> b d l", l=seqlen)
-        B = rearrange(B, "(b l) dstate -> b dstate l", l=seqlen).contiguous()
-        C = rearrange(C, "(b l) dstate -> b dstate l", l=seqlen).contiguous()
+        _, seqlen, _ = hidden_states.shape # torch.Size([128, 196, 320]), seqlen = 196
+        xz = self.in_proj(hidden_states) # torch.Size([128, 196, 320])
+        xz = rearrange(xz, "b l d -> b d l") # torch.Size([128, 320, 196])
+        x, z = xz.chunk(2, dim=1) # x torch.Size([128, 160, 196]) ; z torch.Size([128, 160, 196])
+        A = -torch.exp(self.A_log.float()) # torch.Size([160, 8])
+        x = F.silu(F.conv1d(input=x, weight=self.conv1d_x.weight, bias=self.conv1d_x.bias, padding='same', groups=self.d_inner//2)) # torch.Size([128, 160, 196])
+        z = F.silu(F.conv1d(input=z, weight=self.conv1d_z.weight, bias=self.conv1d_z.bias, padding='same', groups=self.d_inner//2)) # torch.Size([128, 160, 196])
+        x_dbl = self.x_proj(rearrange(x, "b d l -> (b l) d")) # torch.Size([25088, 160]) -> torch.Size([25088, 36])
+        
+        # dt torch.Size([25088, 20])
+        # B torch.Size([25088, 8])
+        # C torch.Size([25088, 8])
+        dt, B, C = torch.split(x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1) # 
+        
+        dt = rearrange(self.dt_proj(dt), "(b l) d -> b d l", l=seqlen) # torch.Size([128, 160, 196])
+
+        B = rearrange(B, "(b l) dstate -> b dstate l", l=seqlen).contiguous() # torch.Size([128, 8, 196])
+        
+        C = rearrange(C, "(b l) dstate -> b dstate l", l=seqlen).contiguous() # torch.Size([128, 8, 196])
+        # y torch.Size([128, 160, 196])
         y = selective_scan_fn(x, 
                               dt, 
                               A, 
@@ -404,10 +412,10 @@ class MambaVisionMixer(nn.Module):
                               delta_softplus=True, 
                               return_last_state=None)
         
-        y = torch.cat([y, z], dim=1)
-        y = rearrange(y, "b d l -> b l d")
-        out = self.out_proj(y)
-        return out
+        y = torch.cat([y, z], dim=1) # y torch.Size([128, 320, 196])
+        y = rearrange(y, "b d l -> b l d") # torch.Size([128, 196, 320])
+        out = self.out_proj(y) # torch.Size([128, 196, 320])
+        return out # torch.Size([128, 196, 320])
     
 
 class Attention(nn.Module):
@@ -505,10 +513,86 @@ class Block(nn.Module):
         self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
 
     def forward(self, x):
+        #import ipdb; ipdb.set_trace()
+        # x torch.Size([128, 196, 320])
         x = x + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x)))
         x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
         return x
 
+class Block_reorder(nn.Module):
+    def __init__(self, 
+                 dim, 
+                 mlp_ratio=4., 
+                 drop=0., 
+                 drop_path=0., 
+                 act_layer=nn.GELU, 
+                 norm_layer=nn.LayerNorm, 
+                 Mlp_block=Mlp,
+                 layer_scale=None,
+                 ):
+        super().__init__()
+        self.norm1 = norm_layer(dim)
+        self.mixer = MambaVisionMixer(d_model=dim, 
+                                        d_state=8,  
+                                        d_conv=3,    
+                                        expand=1
+                                        )
+
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.norm2 = norm_layer(dim)
+        mlp_hidden_dim = int(dim * mlp_ratio)
+        self.mlp = Mlp_block(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+        use_layer_scale = layer_scale is not None and type(layer_scale) in [int, float]
+        self.gamma_1 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
+        self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
+
+    def forward(self, x):
+        #import ipdb; ipdb.set_trace()
+        # x torch.Size([128, 196, 320])
+        x = x + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x)))
+        x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
+        return x
+
+class Block_Attn_last(nn.Module):
+    def __init__(self, 
+                 dim, 
+                 num_heads,   
+                 mlp_ratio=4., 
+                 qkv_bias=False, 
+                 qk_scale=False, 
+                 drop=0., 
+                 attn_drop=0.,
+                 drop_path=0., 
+                 act_layer=nn.GELU, 
+                 norm_layer=nn.LayerNorm, 
+                 Mlp_block=Mlp,
+                 layer_scale=None,
+                 ):
+        super().__init__()
+        self.norm1 = norm_layer(dim)
+        self.mixer = Attention(
+        dim,
+        num_heads=num_heads,
+        qkv_bias=qkv_bias,
+        qk_norm=qk_scale,
+        attn_drop=attn_drop,
+        proj_drop=drop,
+        norm_layer=norm_layer,
+    )
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.norm2 = norm_layer(dim)
+        mlp_hidden_dim = int(dim * mlp_ratio)
+        self.mlp = Mlp_block(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+        use_layer_scale = layer_scale is not None and type(layer_scale) in [int, float]
+        self.gamma_1 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
+        self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
+
+    def forward(self, x):
+        #import ipdb; ipdb.set_trace()
+        # x torch.Size([128, 196, 320])
+        x = x + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x)))
+        x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
+        return x
 
 class MambaVisionLayer(nn.Module):
     """
@@ -581,8 +665,7 @@ class MambaVisionLayer(nn.Module):
         self.window_size = window_size
 
     def forward(self, x):
-        # import ipdb; ipdb.set_trace()
-        _, _, H, W = x.shape # torch.Size([128, 80, 56, 56])
+        _, _, H, W = x.shape
 
         if self.transformer_block:
             pad_r = (self.window_size - W % self.window_size) % self.window_size
@@ -592,7 +675,7 @@ class MambaVisionLayer(nn.Module):
                 _, _, Hp, Wp = x.shape
             else:
                 Hp, Wp = H, W
-            x = window_partition(x, self.window_size) # torch.Size([128, 196, 320])
+            x = window_partition(x, self.window_size)
 
         for _, blk in enumerate(self.blocks):
             x = blk(x)
@@ -604,6 +687,115 @@ class MambaVisionLayer(nn.Module):
             return x
         return self.downsample(x)
 
+class MambaVision_LastStage(nn.Module):
+    """
+    MambaVision layer
+    """
+
+    def __init__(self,
+                 dim,
+                 depth,
+                 num_heads,
+                 window_size,
+                 conv=False,
+                 downsample=True,
+                 mlp_ratio=4.,
+                 qkv_bias=True,
+                 qk_scale=None,
+                 drop=0.,
+                 attn_drop=0.,
+                 drop_path=0.,
+                 layer_scale=None,
+                 layer_scale_conv=None,
+                 transformer_blocks=[],
+    ):
+        super().__init__()
+        self.conv = conv
+        self.transformer_block = False
+        self.depth = depth
+        if conv:
+            self.blocks = nn.ModuleList([ConvBlock(dim=dim,
+                                                   drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                                   layer_scale=layer_scale_conv)
+                                         for i in range(depth)])
+        else:
+            self.blocks = nn.ModuleList()
+            for i in range(depth):
+                if i <= (depth//2 if depth %2 !=0 else depth//2 -1):
+                    block = Block_reorder(dim=dim, 
+                                        mlp_ratio=mlp_ratio,
+                                        drop=drop,                                               
+                                        drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                        layer_scale=layer_scale)
+                else:
+                    block = Block_Attn_last(dim=dim,
+                                            num_heads=num_heads,
+                                            mlp_ratio=mlp_ratio,
+                                            qkv_bias=qkv_bias,
+                                            qk_scale=qk_scale,
+                                            drop=drop,
+                                            attn_drop=attn_drop,
+                                            drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                            layer_scale=layer_scale)
+                self.blocks.append(block)
+            self.transformer_block = True
+
+        self.downsample = None if not downsample else Downsample(dim=dim)
+        self.window_size = window_size
+
+    def forward(self, x):
+        # import ipdb; ipdb.set_trace()
+        _, _, H, W = x.shape
+        if self.transformer_block:
+            pad_r = (self.window_size - W % self.window_size) % self.window_size
+            pad_b = (self.window_size - H % self.window_size) % self.window_size
+            if pad_r > 0 or pad_b > 0:
+                x = torch.nn.functional.pad(x, (0, pad_r, 0, pad_b))
+                _, _, Hp, Wp = x.shape
+            else:
+                Hp, Wp = H, W
+            x = window_partition(x, self.window_size) # torch.Size([128, 196, 320])
+            cls_token = torch.mean(x, dim=1, keepdim=True)  # Example initialization, can be custom
+            # import ipdb; ipdb.set_trace()
+            # Step 3: Concatenate class token with x -> # torch.Size([128, 1 + 196, 320])
+            x = torch.cat([x, cls_token], dim=1)
+
+        # Step 2: Pass the concatenated tensor through the first two Block_ssms_reorder blocks
+        for i, blk in enumerate(self.blocks):
+            if isinstance(blk, Block):
+                x = blk(x)
+            if i == (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1):  # After the second Block_ssms_reorder, we split the class token
+                # Step 3: Split class token and rearrange the sequence
+                # import ipdb; ipdb.set_trace()
+                x, cls_token = torch.split(x, [x.size(1) - 1, 1], dim=1)
+                #x = rearrange_input_sequence(x, cls_token)  # Rearrange based on class token
+                # import ipdb; ipdb.set_trace()
+                dot_prod = torch.matmul(x, cls_token.transpose(1,2)).squeeze(2)  # torch.Size([128, 196])
+                # Use torch.topk to get top-k values and indices per sample in the batch
+                _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  
+                # import ipdb; ipdb.set_trace()
+                # print('rearrange = ', rearrange[0, :])
+                # Expand rearrange to match the dimensions of the original tensor
+                C = x.size(2)  # Number of channels, e.g., 448
+                rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 196, 320]
+                # print('rearrange image 0 corresponding each patch')
+                # print(rearrange[0])
+                x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 196, 320]
+                x = x_reordered
+                break
+
+        # Step 4: Process the remaining blocks (e.g., attention blocks)
+        for blk in self.blocks[2:]:
+            x = blk(x)
+
+        if self.transformer_block:
+            x = window_reverse(x, self.window_size, Hp, Wp)
+            if pad_r > 0 or pad_b > 0:
+                x = x[:, :, :H, :W].contiguous()
+
+        if self.downsample is None:
+            return x
+        return self.downsample(x)
 
 class MambaVision(nn.Module):
     """
@@ -654,22 +846,41 @@ class MambaVision(nn.Module):
         self.levels = nn.ModuleList()
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
-            level = MambaVisionLayer(dim=int(dim * 2 ** i),
-                                     depth=depths[i],
-                                     num_heads=num_heads[i],
-                                     window_size=window_size[i],
-                                     mlp_ratio=mlp_ratio,
-                                     qkv_bias=qkv_bias,
-                                     qk_scale=qk_scale,
-                                     conv=conv,
-                                     drop=drop_rate,
-                                     attn_drop=attn_drop_rate,
-                                     drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
-                                     downsample=(i < 3),
-                                     layer_scale=layer_scale,
-                                     layer_scale_conv=layer_scale_conv,
-                                     transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
-                                     )
+            if i <= len(depths) - 2:
+                level = MambaVisionLayer(dim=int(dim * 2 ** i),
+                                        depth=depths[i],
+                                        num_heads=num_heads[i],
+                                        window_size=window_size[i],
+                                        mlp_ratio=mlp_ratio,
+                                        qkv_bias=qkv_bias,
+                                        qk_scale=qk_scale,
+                                        conv=conv,
+                                        drop=drop_rate,
+                                        attn_drop=attn_drop_rate,
+                                        drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
+                                        downsample=(i < 3),
+                                        layer_scale=layer_scale,
+                                        layer_scale_conv=layer_scale_conv,
+                                        transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
+                                        )
+            else:
+                ## cls_token
+                level = MambaVision_LastStage(dim=int(dim * 2 ** i),
+                                        depth=depths[i],
+                                        num_heads=num_heads[i],
+                                        window_size=window_size[i],
+                                        mlp_ratio=mlp_ratio,
+                                        qkv_bias=qkv_bias,
+                                        qk_scale=qk_scale,
+                                        conv=conv,
+                                        drop=drop_rate,
+                                        attn_drop=attn_drop_rate,
+                                        drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
+                                        downsample=(i < 3),
+                                        layer_scale=layer_scale,
+                                        layer_scale_conv=layer_scale_conv,
+                                        transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
+                                        )
             self.levels.append(level)
         self.norm = nn.BatchNorm2d(num_features)
         self.avgpool = nn.AdaptiveAvgPool2d(1)
@@ -697,7 +908,8 @@ class MambaVision(nn.Module):
 
     def forward_features(self, x):
         # print('x_shape = ', x.shape)
-        x = self.patch_embed(x) # torch.Size([128, 3, 224, 224]) -> torch.Size([128, 160, 28, 28])
+        x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
+        # print(self.levels)
         for level in self.levels:
             x = level(x)
         # torch.Size([128, 640, 7, 7])
