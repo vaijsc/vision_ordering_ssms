@@ -702,7 +702,7 @@ class MambaVisionLayer_reorder(nn.Module):
         # Downsample if applicable
         if self.downsample is None:
             return x  # Return both x and class token
-        return self.downsample(x)
+        return x
 
 
 
