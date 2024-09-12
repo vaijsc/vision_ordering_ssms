@@ -602,7 +602,7 @@ class MambaVisionLayer(nn.Module):
                 x = x[:, :, :H, :W].contiguous()
         if self.downsample is None:
             return x
-        return x
+        return self.downsample(x)
 
 class MambaVisionLayer_reorder(nn.Module):
     """
@@ -691,7 +691,7 @@ class MambaVisionLayer_reorder(nn.Module):
 
         # After Attention, split cls_token and x
         cls_tokens, x = x[:, :1, :], x[:, 1:, :]
-        # import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
         dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)
         _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)
         C = x.size(2)  # Number of channels
@@ -708,7 +708,7 @@ class MambaVisionLayer_reorder(nn.Module):
         # Downsample if applicable
         if self.downsample is None:
             return x  # Return both x and class token
-        return self.downsample(x)
+        return x
 
 
 
