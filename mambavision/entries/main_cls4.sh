@@ -31,8 +31,8 @@ echo $CUDA_VISIBLE_DEVICES
 DATA_PATH="/lustre/scratch/client/vinai/users/ducna22/data/imagenet"
 MODEL=mamba_vision_T
 BS=128
-#EXP=Cls4
-EXP=Test # annotate this after finish debugging
+EXP=Cls4
+#EXP=Test # annotate this after finish debugging
 LR=8e-4
 WD=0.05
 WR_LR=1e-6
