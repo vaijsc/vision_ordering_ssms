@@ -614,7 +614,6 @@ class MambaVisionLayer_reorder(nn.Module):
                  depth,
                  num_heads,
                  window_size,
-                 downsample=True,
                  conv=False,
                  mlp_ratio=4.,
                  qkv_bias=True,
@@ -631,7 +630,7 @@ class MambaVisionLayer_reorder(nn.Module):
         self.transformer_block = False
         self.depth = depth
         # Initialize class token
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim * 2)) # downsample -> x2
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim))
 
         # Separate MambaMixer and Attention blocks
         if conv:
@@ -657,13 +656,12 @@ class MambaVisionLayer_reorder(nn.Module):
             # The first 4 blocks are MambaMixer, and the last 4 are Attention blocks
             self.indices = (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1)
             self.transformer_block = True
-        self.downsample = None if not downsample else Downsample(dim=dim)
-        self.do_gt = False
+
         self.window_size = window_size
 
     def forward(self, x):
         B, C, H, W = x.shape  # Get batch size and spatial dimensions
-        print('hell')
+
         # Pad input to match window size if necessary
         if self.transformer_block:
             pad_r = (self.window_size - W % self.window_size) % self.window_size
@@ -675,11 +673,9 @@ class MambaVisionLayer_reorder(nn.Module):
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size)
 
-        breakpoint()
         # Apply MambaMixer blocks (first 4 blocks)
         for i, blk in enumerate(self.blocks):
             if i == self.indices:  # Add class token before the first attention block (after 4 MambaMixer blocks)
-                x = self.downsample(x)
                 cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim)
                 x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim)
 
@@ -746,7 +742,7 @@ class MambaVision(nn.Module):
             layer_scale_conv: conv layer scaling coefficient.
         """
         super().__init__()
-        num_features = int(dim * 2 ** (len(depths) - 1)) # change this 
+        num_features = int(dim * 2 ** (len(depths) - 2)) # change this 
         self.num_classes = num_classes
         self.patch_embed = PatchEmbed(in_chans=in_chans, in_dim=in_dim, dim=dim)
         self.drop_path_rate = drop_path_rate
@@ -767,12 +763,28 @@ class MambaVision(nn.Module):
                                         attn_drop=attn_drop_rate,
                                         drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
                                         layer_scale=layer_scale,
-                                        downsample=(i < 3),
                                         layer_scale_conv=layer_scale_conv,
                                         transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
                                         )
-                
-            level = MambaVisionLayer(dim=int(dim * 2 ** i), # change this 
+            elif i ==0 or i==1:
+                level = MambaVisionLayer(dim=int(dim * 2 ** i), # change this 
+                                        depth=depths[i],
+                                        num_heads=num_heads[i],
+                                        window_size=window_size[i],
+                                        mlp_ratio=mlp_ratio,
+                                        qkv_bias=qkv_bias,
+                                        qk_scale=qk_scale,
+                                        conv=conv,
+                                        drop=drop_rate,
+                                        attn_drop=attn_drop_rate,
+                                        drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
+                                        downsample=(i < 3),
+                                        layer_scale=layer_scale,
+                                        layer_scale_conv=layer_scale_conv,
+                                        transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
+                                        )
+            else:
+                level = MambaVisionLayer(dim=int(dim * 2 ** (i-1)), # change this 
                                         depth=depths[i],
                                         num_heads=num_heads[i],
                                         window_size=window_size[i],
