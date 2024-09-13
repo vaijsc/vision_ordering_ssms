@@ -631,7 +631,7 @@ class MambaVisionLayer_reorder(nn.Module):
         self.transformer_block = False
         self.depth = depth
         # Initialize class token
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim))
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim * 2))
 
         # Separate MambaMixer and Attention blocks
         if conv:
@@ -700,8 +700,8 @@ class MambaVisionLayer_reorder(nn.Module):
                         x = x[:, :, :H, :W].contiguous()
                     x = self.downsample(x)
                     x = window_partition(x, self.window_size // 2)
-                cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim)
-                x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim)
+                cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim * 2)
+                x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim * 2)
 
             # Pass through the block
             x = blk(x)
@@ -714,8 +714,8 @@ class MambaVisionLayer_reorder(nn.Module):
             dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)
             _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)
             C = x.size(2)  # Number of channels
-            rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # Shape: [128, 196, 320]
-            x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # Shape: [128, 196, 320]
+            rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # Shape: [128, 196, 640]
+            x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # Shape: [128, 196, 640]
             x = x_reordered
             x = window_reverse(x, self.window_size // 2, Hp // 2, Wp // 2)
             if pad_r > 0 or pad_b > 0:
