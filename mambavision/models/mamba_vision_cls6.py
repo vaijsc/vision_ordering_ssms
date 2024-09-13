@@ -675,11 +675,10 @@ class MambaVisionLayer_reorder(nn.Module):
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size)
 
-        import ipdb; ipdb.set_trace() # check bug
-
         # Apply MambaMixer blocks (first 4 blocks)
         for i, blk in enumerate(self.blocks):
             if i == self.indices:  # Add class token before the first attention block (after 4 MambaMixer blocks)
+                import ipdb; ipdb.set_trace() # check bug
                 x = self.downsample(x)
                 cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim)
                 x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim)
@@ -756,6 +755,7 @@ class MambaVision(nn.Module):
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
             if i == 2:
+                print('hello')
                 level = MambaVisionLayer_reorder(dim=int(dim * 2 ** i), 
                                         depth=depths[i],
                                         num_heads=num_heads[i],
