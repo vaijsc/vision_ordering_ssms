@@ -767,6 +767,7 @@ class MambaVision(nn.Module):
                                         attn_drop=attn_drop_rate,
                                         drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
                                         layer_scale=layer_scale,
+                                        downsample=(i < 3),
                                         layer_scale_conv=layer_scale_conv,
                                         transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
                                         )
