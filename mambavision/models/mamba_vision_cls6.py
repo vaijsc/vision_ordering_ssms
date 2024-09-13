@@ -699,7 +699,7 @@ class MambaVisionLayer_reorder(nn.Module):
                     if pad_r > 0 or pad_b > 0:
                         x = x[:, :, :H, :W].contiguous()
                     x = self.downsample(x)
-                    x = window_partition(x, self.window_size)
+                    x = window_partition(x, self.window_size // 2)
                 cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim)
                 x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim)
 
@@ -717,14 +717,14 @@ class MambaVisionLayer_reorder(nn.Module):
             rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # Shape: [128, 196, 320]
             x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # Shape: [128, 196, 320]
             x = x_reordered
-            x = window_reverse(x, self.window_size, Hp, Wp)
+            x = window_reverse(x, self.window_size // 2, Hp // 2, Wp // 2)
             if pad_r > 0 or pad_b > 0:
                 x = x[:, :, :H, :W].contiguous()
 
         # Downsample if applicable
         # if self.downsample is None:
         #     return x  # Return both x and class token
-        return x
+        return x 
 
 
 
