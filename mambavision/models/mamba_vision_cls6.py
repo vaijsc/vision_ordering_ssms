@@ -631,7 +631,7 @@ class MambaVisionLayer_reorder(nn.Module):
         self.transformer_block = False
         self.depth = depth
         # Initialize class token
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim))
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim * 2))
 
         # Separate MambaMixer and Attention blocks
         if conv:
@@ -683,7 +683,7 @@ class MambaVisionLayer_reorder(nn.Module):
                 if pad_r > 0 or pad_b > 0:
                     x = x[:, :, :H, :W].contiguous()
                 x = self.downsample(x)
-                x = window_partition(x, self.window_size // 2) # because dimension of window size change to 7 
+                x = window_partition(x, self.window_size // 2) # because dimension of window size change to 7  ---------------------- change later
                 cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim)
                 x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim)
 
