@@ -631,7 +631,7 @@ class MambaVisionLayer_reorder(nn.Module):
         self.transformer_block = False
         self.depth = depth
         # Initialize class token
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim))
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim * 2)) # downsample -> x2
 
         # Separate MambaMixer and Attention blocks
         if conv:
@@ -675,6 +675,7 @@ class MambaVisionLayer_reorder(nn.Module):
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size)
 
+        import ipdb; ipdb.set_trace()
         # Apply MambaMixer blocks (first 4 blocks)
         for i, blk in enumerate(self.blocks):
             if i == self.indices:  # Add class token before the first attention block (after 4 MambaMixer blocks)
