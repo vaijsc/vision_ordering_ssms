@@ -678,7 +678,7 @@ class MambaVisionLayer_reorder(nn.Module):
         # Apply MambaMixer blocks (first 4 blocks)
         for i, blk in enumerate(self.blocks):
             if i == self.indices:  # Add class token before the first attention block (after 4 MambaMixer blocks)
-                breakpoint()
+                import ipdb; ipdb.set_trace()
                 x = window_reverse(x, self.window_size, Hp, Wp)
                 if pad_r > 0 or pad_b > 0:
                     x = x[:, :, :H, :W].contiguous()
