@@ -642,6 +642,7 @@ class MambaVisionLayer_reorder(nn.Module):
             self.transformer_block = False
         else:
             self.indices = (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1)
+            self.blocks = nn.ModuleList()
             for i in range (depth):
                 if i >= self.indices + 1:
                     level = Block(dim=dim * 2,
