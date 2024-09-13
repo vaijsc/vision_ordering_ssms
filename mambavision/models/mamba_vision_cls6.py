@@ -678,8 +678,7 @@ class MambaVisionLayer_reorder(nn.Module):
         # Apply MambaMixer blocks (first 4 blocks)
         for i, blk in enumerate(self.blocks):
             if i == self.indices:  # Add class token before the first attention block (after 4 MambaMixer blocks)
-                # import ipdb; ipdb.set_trace()
-                # x = self.downsample(x)
+                x = self.downsample(x)
                 cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim)
                 x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim)
 
@@ -815,7 +814,7 @@ class MambaVision(nn.Module):
     def forward_features(self, x):
         # print('x_shape = ', x.shape)
         x = self.patch_embed(x) # torch.Size([128, 3, 224, 224]) -> torch.Size([128, 160, 28, 28])
-        # import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
         for level in self.levels:
             x = level(x)
         # torch.Size([128, 640, 7, 7])
