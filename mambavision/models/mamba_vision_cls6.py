@@ -631,7 +631,7 @@ class MambaVisionLayer_reorder(nn.Module):
         self.transformer_block = False
         self.depth = depth
         # Initialize class token
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim))
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim * 2))
 
         # Separate MambaMixer and Attention blocks
         if conv:
@@ -641,21 +641,48 @@ class MambaVisionLayer_reorder(nn.Module):
                                          for i in range(depth)])
             self.transformer_block = False
         else:
-            self.blocks = nn.ModuleList([Block(dim=dim,
-                                               counter=i, 
-                                               transformer_blocks=transformer_blocks,
-                                               num_heads=num_heads,
-                                               mlp_ratio=mlp_ratio,
-                                               qkv_bias=qkv_bias,
-                                               qk_scale=qk_scale,
-                                               drop=drop,
-                                               attn_drop=attn_drop,
-                                               drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-                                               layer_scale=layer_scale)
-                                         for i in range(depth)])
+            self.indices = (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1)
+            self.blocks = nn.ModuleList()
+            # self.blocks = nn.ModuleList([Block(dim=dim,
+            #                                    counter=i, 
+            #                                    transformer_blocks=transformer_blocks,
+            #                                    num_heads=num_heads,
+            #                                    mlp_ratio=mlp_ratio,
+            #                                    qkv_bias=qkv_bias,
+            #                                    qk_scale=qk_scale,
+            #                                    drop=drop,
+            #                                    attn_drop=attn_drop,
+            #                                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+            #                                    layer_scale=layer_scale)
+            #                              for i in range(depth)])
+            for i in range (depth):
+                if i >= self.indices + 1:
+                    level = Block(dim=dim * 2,
+                                    counter=i, 
+                                    transformer_blocks=transformer_blocks,
+                                    num_heads=num_heads,
+                                    mlp_ratio=mlp_ratio,
+                                    qkv_bias=qkv_bias,
+                                    qk_scale=qk_scale,
+                                    drop=drop,
+                                    attn_drop=attn_drop,
+                                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                    layer_scale=layer_scale)
+                else:
+                    level = Block(dim=dim,
+                                    counter=i, 
+                                    transformer_blocks=transformer_blocks,
+                                    num_heads=num_heads,
+                                    mlp_ratio=mlp_ratio,
+                                    qkv_bias=qkv_bias,
+                                    qk_scale=qk_scale,
+                                    drop=drop,
+                                    attn_drop=attn_drop,
+                                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                    layer_scale=layer_scale)
+                self.blocks.append(level)
 
             # The first 4 blocks are MambaMixer, and the last 4 are Attention blocks
-            self.indices = (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1)
             self.transformer_block = True
 
         self.downsample = None if not downsample else Downsample(dim=dim)
@@ -678,8 +705,7 @@ class MambaVisionLayer_reorder(nn.Module):
         # Apply MambaMixer blocks (first 4 blocks)
         for i, blk in enumerate(self.blocks):
             if i == self.indices:  # Add class token before the first attention block (after 4 MambaMixer blocks)
-                breakpoint()
-                x = self.downsample(x, dim)
+                x = self.downsample(x)
                 cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim)
                 x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim)
 

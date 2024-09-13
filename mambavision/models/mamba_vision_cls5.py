@@ -675,7 +675,7 @@ class MambaVisionLayer_reorder(nn.Module):
 
         # Apply MambaMixer blocks (first 4 blocks)
         for i, blk in enumerate(self.blocks):
-            if i == self.indices:  # Add class token before the first attention block (after 4 MambaMixer blocks)
+            if i == self.indices + 1:  # Add class token before the first attention block (after 4 MambaMixer blocks)
                 cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim)
                 x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim)
 
