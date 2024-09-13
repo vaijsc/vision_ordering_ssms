@@ -615,6 +615,7 @@ class MambaVisionLayer_reorder(nn.Module):
                  num_heads,
                  window_size,
                  conv=False,
+                 downsample=True,
                  mlp_ratio=4.,
                  qkv_bias=True,
                  qk_scale=None,
@@ -657,6 +658,7 @@ class MambaVisionLayer_reorder(nn.Module):
             self.indices = (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1)
             self.transformer_block = True
 
+        self.downsample = None if not downsample else Downsample(dim=dim)
         self.window_size = window_size
 
     def forward(self, x):
@@ -672,10 +674,11 @@ class MambaVisionLayer_reorder(nn.Module):
             else:
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size)
-        breakpoint()
+
         # Apply MambaMixer blocks (first 4 blocks)
         for i, blk in enumerate(self.blocks):
             if i == self.indices:  # Add class token before the first attention block (after 4 MambaMixer blocks)
+                x = self.downsample(x)
                 cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim)
                 x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim)
 
@@ -697,6 +700,9 @@ class MambaVisionLayer_reorder(nn.Module):
             if pad_r > 0 or pad_b > 0:
                 x = x[:, :, :H, :W].contiguous()
 
+        # Downsample if applicable
+        # if self.downsample is None:
+        #     return x  # Return both x and class token
         return x
 
 
@@ -742,7 +748,7 @@ class MambaVision(nn.Module):
             layer_scale_conv: conv layer scaling coefficient.
         """
         super().__init__()
-        num_features = int(dim * 2 ** (len(depths) - 2)) # change this 
+        num_features = int(dim * 2 ** (len(depths) - 1))
         self.num_classes = num_classes
         self.patch_embed = PatchEmbed(in_chans=in_chans, in_dim=in_dim, dim=dim)
         self.drop_path_rate = drop_path_rate
@@ -751,23 +757,7 @@ class MambaVision(nn.Module):
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
             if i == 2:
-                level = MambaVisionLayer_reorder(dim=int(dim * 2 ** i), 
-                                        depth=depths[i],
-                                        num_heads=num_heads[i],
-                                        window_size=window_size[i],
-                                        mlp_ratio=mlp_ratio,
-                                        qkv_bias=qkv_bias,
-                                        qk_scale=qk_scale,
-                                        conv=conv,
-                                        drop=drop_rate,
-                                        attn_drop=attn_drop_rate,
-                                        drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
-                                        layer_scale=layer_scale,
-                                        layer_scale_conv=layer_scale_conv,
-                                        transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
-                                        )
-            elif i ==0 or i==1:
-                level = MambaVisionLayer(dim=int(dim * 2 ** i), # change this 
+                level = MambaVisionLayer_reorder(dim=int(dim * 2 ** i),
                                         depth=depths[i],
                                         num_heads=num_heads[i],
                                         window_size=window_size[i],
@@ -784,7 +774,7 @@ class MambaVision(nn.Module):
                                         transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
                                         )
             else:
-                level = MambaVisionLayer(dim=int(dim * 2 ** (i-1)), # change this 
+                level = MambaVisionLayer(dim=int(dim * 2 ** i),
                                         depth=depths[i],
                                         num_heads=num_heads[i],
                                         window_size=window_size[i],
