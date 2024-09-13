@@ -680,8 +680,10 @@ class MambaVisionLayer_reorder(nn.Module):
             if i == self.indices:  # Add class token before the first attention block (after 4 MambaMixer blocks)
                 breakpoint()
                 x = window_reverse(x, self.window_size, Hp, Wp)
+                if pad_r > 0 or pad_b > 0:
+                    x = x[:, :, :H, :W].contiguous()
                 x = self.downsample(x)
-                x = window_partition(x, self.window_size)
+                x = window_partition(x, self.window_size // 2) # because dimension of window size change to 7 
                 cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim)
                 x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim)
 
