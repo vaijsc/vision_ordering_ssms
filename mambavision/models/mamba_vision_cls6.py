@@ -631,7 +631,7 @@ class MambaVisionLayer_reorder(nn.Module):
         self.transformer_block = False
         self.depth = depth
         # Initialize class token
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim * 2))
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim))
 
         # Separate MambaMixer and Attention blocks
         if conv:
@@ -642,19 +642,6 @@ class MambaVisionLayer_reorder(nn.Module):
             self.transformer_block = False
         else:
             self.indices = (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1)
-            self.blocks = nn.ModuleList()
-            # self.blocks = nn.ModuleList([Block(dim=dim,
-            #                                    counter=i, 
-            #                                    transformer_blocks=transformer_blocks,
-            #                                    num_heads=num_heads,
-            #                                    mlp_ratio=mlp_ratio,
-            #                                    qkv_bias=qkv_bias,
-            #                                    qk_scale=qk_scale,
-            #                                    drop=drop,
-            #                                    attn_drop=attn_drop,
-            #                                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-            #                                    layer_scale=layer_scale)
-            #                              for i in range(depth)])
             for i in range (depth):
                 if i >= self.indices + 1:
                     level = Block(dim=dim * 2,
@@ -683,6 +670,7 @@ class MambaVisionLayer_reorder(nn.Module):
                 self.blocks.append(level)
 
             # The first 4 blocks are MambaMixer, and the last 4 are Attention blocks
+            
             self.transformer_block = True
 
         self.downsample = None if not downsample else Downsample(dim=dim)
@@ -704,9 +692,13 @@ class MambaVisionLayer_reorder(nn.Module):
 
         # Apply MambaMixer blocks (first 4 blocks)
         for i, blk in enumerate(self.blocks):
-            if i == self.indices:  # Add class token before the first attention block (after 4 MambaMixer blocks)
-                import ipdb; ipdb.set_trace()
-                x = self.downsample(x)
+            if i == self.indices + 1:  # Add class token before the first attention block (after 4 MambaMixer blocks)
+                if self.transformer_block:
+                    x = window_reverse(x, self.window_size, Hp, Wp)
+                    if pad_r > 0 or pad_b > 0:
+                        x = x[:, :, :H, :W].contiguous()
+                    x = self.downsample(x)
+                    x = window_partition(x, self.window_size)
                 cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim)
                 x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim)
 
