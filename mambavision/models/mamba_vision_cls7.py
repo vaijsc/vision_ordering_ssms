@@ -692,7 +692,6 @@ class MambaVisionLayer_reorder(nn.Module):
             x = window_partition(x, self.window_size)
         # import ipdb; ipdb.set_trace()
         # Apply MambaMixer blocks (first 4 blocks)
-        cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim * 2)
         for i, blk in enumerate(self.blocks):
             if i == self.indices + 1:  # Add class token before the first attention block (after 4 MambaMixer blocks)
                 if self.transformer_block:
@@ -701,26 +700,24 @@ class MambaVisionLayer_reorder(nn.Module):
                         x = x[:, :, :H, :W].contiguous()
                     x = self.downsample(x)
                     x = window_partition(x, self.window_size // 2)
-            # Pass through the block
-            x = blk(x)
-
-        # x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim * 2)
-        # x [128, 49, 640]
-        # cls [128, 1, 640]
-
+                cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim * 2)
+                x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim * 2)
+                x = blk(x)
+                # After Attention, split cls_token and x
+                cls_tokens, x = x[:, :1, :], x[:, 1:, :]
+                # import ipdb; ipdb.set_trace()
+                dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)
+                _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)
+                C = x.size(2)  # Number of channels
+                rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # Shape: [128, 196, 640]
+                x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # Shape: [128, 196, 640]
+                x = x_reordered
+            else:
+                # Pass through the block
+                x = blk(x)
 
         # Window reverse if transformer block and restore original shape
         if self.transformer_block:
-            # After Attention, split cls_token and x
-            cls_tokens, x = x[:, :1, :], x[:, 1:, :]
-            # import ipdb; ipdb.set_trace()
-            dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2) # [128, 640]
-            import ipdb; ipdb.set_trace()
-            # _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)
-            C = x.size(2)  # Number of channels
-            rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # Shape: [128, 196, 640]
-            x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # Shape: [128, 196, 640]
-            x = x_reordered
             x = window_reverse(x, self.window_size // 2, Hp // 2, Wp // 2)
             if pad_r > 0 or pad_b > 0:
                 x = x[:, :, :H, :W].contiguous()
