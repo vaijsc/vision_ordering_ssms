@@ -20,7 +20,6 @@ echo $CUDA_VISIBLE_DEVICES
 
 #Superpod:
 #DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet/train"
-
 #DATA_PATH="/home/ubuntu/workspace/dataset/imagenet"
 DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet"
 MODEL=mamba_vision_T
