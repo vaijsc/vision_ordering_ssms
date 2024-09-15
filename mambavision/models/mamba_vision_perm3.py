@@ -729,8 +729,7 @@ class MambaVision(nn.Module):
         
         post_layers = ['ca']
         self.embed_dims = dim * 2**(len(depths) - 1)
-        #self.keys = nn.Parameter(torch.randn(1, self.embed_dims))  # Learnable keys
-        self.keys = None  # Initialize keys as None
+        self.keys = nn.Parameter(torch.randn(window_size[-1]**2, self.embed_dims))  # Learnable keys
         self.post_network = nn.ModuleList([
             ClassBlock(
                 dim = self.embed_dims, 
@@ -760,8 +759,8 @@ class MambaVision(nn.Module):
     def forward_cls(self, x):
         B, N, C = x.shape  # B = 128, N = 49, C = 448
         # import ipdb; ipdb.set_trace()
-        if self.keys is None or self.keys.size(0) != N:
-            self.keys = nn.Parameter(torch.randn(N, C).to(x.device))
+        # if self.keys.size(0) != N:
+        #     self.keys = nn.Parameter(torch.randn(N, C).to(x.device))
         # Compute self-attention
         K = self.keys.unsqueeze(0).expand(B, -1, -1)  # Expand keys for batch size
         attention_scores = torch.matmul(x, K.transpose(-1, -2)) / math.sqrt(C)  # [B, N, num_keys]
