@@ -2,3 +2,11 @@ Current path is /home/anhnd81/.local/bin:/lustre/scratch/client/vinai/users/anhn
 Running
 0
 filter_bias_and_bn
+tensor([[nan, nan, nan,  ..., nan, nan, nan],
+        [nan, nan, nan,  ..., nan, nan, nan],
+        [nan, nan, nan,  ..., nan, nan, nan],
+        ...,
+        [nan, nan, nan,  ..., nan, nan, nan],
+        [nan, nan, nan,  ..., nan, nan, nan],
+        [nan, nan, nan,  ..., nan, nan, nan]], device='cuda:0',
+       dtype=torch.float16, grad_fn=<AddmmBackward0>)
