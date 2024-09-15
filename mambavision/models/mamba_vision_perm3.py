@@ -729,7 +729,8 @@ class MambaVision(nn.Module):
         
         post_layers = ['ca']
         self.embed_dims = dim * 2**(len(depths) - 1)
-        self.keys = nn.Parameter(torch.randn(1, self.embed_dims))  # Learnable keys
+        #self.keys = nn.Parameter(torch.randn(1, self.embed_dims))  # Learnable keys
+        self.keys = None  # Initialize keys as None
         self.post_network = nn.ModuleList([
             ClassBlock(
                 dim = self.embed_dims, 
@@ -759,7 +760,7 @@ class MambaVision(nn.Module):
     def forward_cls(self, x):
         B, N, C = x.shape  # B = 128, N = 49, C = 448
         # import ipdb; ipdb.set_trace()
-        if self.keys.size(0) != N:
+        if self.keys is None or self.keys.size(0) != N:
             self.keys = nn.Parameter(torch.randn(N, C).to(x.device))
         # Compute self-attention
         K = self.keys.unsqueeze(0).expand(B, -1, -1)  # Expand keys for batch size
@@ -846,6 +847,7 @@ def mamba_vision_T(pretrained=False, **kwargs):
     # , **kwargs
     # import ipdb; ipdb.set_trace()
     print(model)
+    
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
