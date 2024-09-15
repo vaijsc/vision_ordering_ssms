@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name=mv_perm1
-#SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_perm1_2.txt
+#SBATCH --job-name=mv_perm1_2.1
+#SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_perm1_2.1.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
 #SBATCH --nodelist=sdc2-hpc-dgx-a100-020
@@ -26,7 +26,7 @@ DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet"
 MODEL=mamba_vision_T
 BS=128
 EXP=perm1
-LR=8e-4
+LR=4e-4
 WD=0.05
 WR_LR=1e-6
 DR=0.38
