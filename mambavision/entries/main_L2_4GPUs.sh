@@ -24,12 +24,8 @@ echo "Running"
 # nvidia-smi
 echo $CUDA_VISIBLE_DEVICES
 
-#Superpod:
-#DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet/train"
-#DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet"
-#DATA_PATH="/lustre/scratch/client/vinai/users/phinh2/workspace/dataset/imagenet"
 DATA_PATH="/lustre/scratch/client/vinai/users/ducna22/data/imagenet"
-MODEL=mamba_vision_L2
+MODEL=mamba_vision_T
 BS=128
 EXP=perm1
 #EXP=Test # annotate this after finish debugging
