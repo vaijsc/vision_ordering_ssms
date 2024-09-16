@@ -543,7 +543,7 @@ def main():
             # Apex DDP preferred unless native amp is activated
             if args.local_rank == 0:
                 _logger.info("Using NVIDIA APEX DistributedDataParallel.")
-            model = ApexDDP(model, delay_allreduce=True)
+            model = ApexDDP(model, delay_allreduce=True, find_unused_parameters=True) # change 
         else:
             if args.local_rank == 0:
                 _logger.info("Using native Torch DistributedDataParallel.")
