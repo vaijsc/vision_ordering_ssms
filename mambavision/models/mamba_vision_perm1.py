@@ -867,8 +867,8 @@ def mamba_vision_T2(pretrained=False, **kwargs):
                         in_dim=32,
                         mlp_ratio=4,
                         resolution=224,
-                        drop_path_rate=0.2,
-                        **kwargs)
+                        drop_path_rate=0.2)
+    # **kwargs
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
@@ -892,8 +892,8 @@ def mamba_vision_S(pretrained=False, **kwargs):
                         in_dim=64,
                         mlp_ratio=4,
                         resolution=224,
-                        drop_path_rate=0.2,
-                        **kwargs)
+                        drop_path_rate=0.2)
+    # , **kwargs
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
@@ -919,8 +919,8 @@ def mamba_vision_B(pretrained=False, **kwargs):
                         resolution=224,
                         drop_path_rate=0.3,
                         layer_scale=1e-5,
-                        layer_scale_conv=None,
-                        **kwargs)
+                        layer_scale_conv=None)
+    # ,**kwargs
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
@@ -946,8 +946,8 @@ def mamba_vision_L(pretrained=False, **kwargs):
                         resolution=224,
                         drop_path_rate=0.3,
                         layer_scale=1e-5,
-                        layer_scale_conv=None,
-                        **kwargs)
+                        layer_scale_conv=None)
+    # ,**kwargs
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
