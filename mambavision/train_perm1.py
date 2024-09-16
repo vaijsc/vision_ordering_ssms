@@ -893,7 +893,9 @@ def train_one_epoch(
                 utils.dispatch_clip_grad(
                     model_parameters(model, exclude_head='agc' in args.clip_mode),
                     value=args.clip_grad, mode=args.clip_mode)
-
+            for name, params in model.named_parameters():
+                if params.grad is None:
+                    print(name)
             optimizer.step()
 
         if model_ema is not None:
