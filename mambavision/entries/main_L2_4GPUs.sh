@@ -26,9 +26,6 @@ echo $CUDA_VISIBLE_DEVICES
 
 #Superpod:
 #DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet/train"
-
-#Superpod:
-#DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet/train"
 #DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet"
 #DATA_PATH="/lustre/scratch/client/vinai/users/phinh2/workspace/dataset/imagenet"
 DATA_PATH="/lustre/scratch/client/vinai/users/ducna22/data/imagenet"
