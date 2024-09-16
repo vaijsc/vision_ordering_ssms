@@ -291,11 +291,12 @@ class ConvBlock(nn.Module):
         input = x # torch.Size([128, 80, 56, 56])
         x = self.conv1(x)
         x = self.norm1(x)
-        # import ipdb; ipdb.set_trace() # change 
-        t_x = type(x)
+        import ipdb; ipdb.set_trace() # change 
+        #t_x = type(x)
+        orig_dtype = x.dtype
         x = x.to(torch.float32)
         x = self.act1(x)
-        x = x.to(t_x)
+        x = x.to(orig_dtype)
         x = self.conv2(x)
         x = self.norm2(x)
         if self.layer_scale:
