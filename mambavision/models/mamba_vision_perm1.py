@@ -973,8 +973,9 @@ def mamba_vision_L2(pretrained=False, **kwargs):
                         resolution=224,
                         drop_path_rate=0.3,
                         layer_scale=1e-5,
-                        layer_scale_conv=None,
-                        **kwargs)
+                        layer_scale_conv=None
+                        )
+    # **kwargs
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
