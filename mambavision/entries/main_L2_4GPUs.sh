@@ -23,7 +23,7 @@ echo "Current path is $PATH"
 echo "Running"
 # nvidia-smi
 echo $CUDA_VISIBLE_DEVICES
-
+conda activate vssm
 #Superpod:
 #DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet/train"
 #DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet"
