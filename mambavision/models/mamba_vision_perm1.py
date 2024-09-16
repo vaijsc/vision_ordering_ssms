@@ -291,7 +291,7 @@ class ConvBlock(nn.Module):
         input = x # torch.Size([128, 80, 56, 56])
         x = self.conv1(x)
         x = self.norm1(x)
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace() # change 
         t_x = type(x)
         x = x.to(torch.float32)
         x = self.act1(x)
