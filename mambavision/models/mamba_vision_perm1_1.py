@@ -800,9 +800,10 @@ class MambaVision(nn.Module):
         x = x.permute(0, 2, 1)  # Permute to [128, 49, 640]
         import ipdb; ipdb.set_trace()
         # output [128, 49, 640]
+        m = self.forward_cls(x)[:, 0]
+        n = self.forward_cls(x)[:, 1:]
         x = self.forward_cls(x)[:, 0]
-        y = self.forward_cls(x)[:, 1:]
-        new_head = x + y[:, -1] # because y[:, -1] contains the whole information
+        new_head = m + n[:, -1] # because y[:, -1] contains the whole information
         # norm = getattr(self, f"norm{self.num_stages}")
         # import ipdb; ipdb.set_trace()
         layer_norm = nn.LayerNorm(x.size()[1:]).to(x.device)
