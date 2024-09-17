@@ -798,7 +798,7 @@ class MambaVision(nn.Module):
         # Transform x to shape [128, 49, 640]
         x = x.view(x.size(0), x.size(1), -1)  # Reshape to [128, 640, 49]
         x = x.permute(0, 2, 1)  # Permute to [128, 49, 640]
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         # output [128, 49, 640]
         m = self.forward_cls(x)[:, 0]
         n = self.forward_cls(x)[:, 1:]
