@@ -800,7 +800,8 @@ class MambaVision(nn.Module):
         x = x.permute(0, 2, 1)  # Permute to [128, 49, 640]
         import ipdb; ipdb.set_trace()
         # output [128, 49, 640]
-        x, y = self.forward_cls(x)[:, 0], self.forward_cls(x)[:, 1:]
+        x = self.forward_cls(x)[:, 0]
+        y = self.forward_cls(x)[:, 1:]
         new_head = x + y[:, -1] # because y[:, -1] contains the whole information
         # norm = getattr(self, f"norm{self.num_stages}")
         # import ipdb; ipdb.set_trace()
