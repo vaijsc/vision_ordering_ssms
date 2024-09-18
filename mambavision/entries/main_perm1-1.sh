@@ -20,5 +20,5 @@ MESA=0.25
 RUN_FILE="/root/workspace/mambavision_1/mambavision/train_perm1.py"
 # checkpoint="/home/anhnd81/anhnd81/workspace/mambavision_1/output/train/perm1/20240908-234939-mamba_vision_T-224/last.pth.tar"
 torchrun --master-port=12365 --nproc_per_node=4 $RUN_FILE --mesa ${MESA} --input-size 3 224 224 --crop-pct=0.875 \
---data_dir=$DATA_PATH --model $MODEL --amp --weight-decay ${WD} --drop-path ${DR} --batch-size $BS --tag $EXP --lr $LR --warmup-lr $WR_LR # \
+--data_dir=$DATA_PATH --model $MODEL --amp --weight-decay ${WD} --drop-path ${DR} --batch-size $BS --tag $EXP --lr $LR --warmup-lr $WR_LR > log.txt # \
 # --resume /home/anhnd81/anhnd81/workspace/mambavision_1/output/train/perm1/20240910-162332-mamba_vision_T-224/checkpoint-307.pth.tar
