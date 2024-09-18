@@ -850,9 +850,8 @@ def mamba_vision_T(pretrained=False, **kwargs):
                         in_dim=32,
                         mlp_ratio=4,
                         resolution=224,
-                        drop_path_rate=0.2,  
-                        **kwargs)
-    # 
+                        drop_path_rate=0.2)
+    # ,  **kwargs
     print('hello')
     print(model.drop_path_rate)
     model.pretrained_cfg = pretrained_cfg
