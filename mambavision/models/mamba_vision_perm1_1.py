@@ -853,7 +853,7 @@ def mamba_vision_T(pretrained=False, **kwargs):
                         drop_path_rate=0.2,  
                         **kwargs)
     # 
-    # import ipdb; ipdb.set_trace()
+    import ipdb; ipdb.set_trace()
     print(model.drop_path_rate)
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg

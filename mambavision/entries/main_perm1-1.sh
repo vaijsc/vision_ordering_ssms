@@ -1,4 +1,4 @@
-conda init
+# conda init
 conda activate mambav
 cd /root/workspace/mambavision_1/mambavision
 echo "Current path is $PATH"
