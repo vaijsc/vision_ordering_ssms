@@ -12,7 +12,7 @@
 
 #module purge
 #module load python/miniconda3/miniconda3
-eval "$(conda shell.bash hook)"
+#eval "$(conda shell.bash hook)"
 #conda activate /lustre/scratch/client/vinai/users/anhnd81/envs/mambavision
 #conda activate /lustre/scratch/client/vinai/users/phinh2/workspace/envs/mambav
 conda activate vssm
@@ -39,7 +39,13 @@ WR_LR=1e-6
 # DR=0.38
 MESA=0.25
 RUN_FILE="/lustre/scratch/client/vinai/users/ducna22/workspace/mambavision_1/mambavision/train.py"
-torchrun --master_port 12358 --nproc_per_node=1 $RUN_FILE --mesa ${MESA} --input-size 3 224 224 --crop-pct=0.875 \
+<<<<<<< HEAD
+torchrun --master_port 12368 --nproc_per_node=1 $RUN_FILE --mesa ${MESA} --input-size 3 224 224 --crop-pct=0.875 \
  --data_dir=$DATA_PATH --model $MODEL --amp --weight-decay ${WD} --batch-size $BS --tag $EXP --lr $LR --warmup-lr $WR_LR 
+=======
+torchrun --master_port 12358 --nproc_per_node=1 $RUN_FILE --mesa ${MESA} --input-size 3 224 224 --crop-pct=0.875 \
+ --data_dir=$DATA_PATH --model $MODEL --amp --weight-decay ${WD} --batch-size $BS --tag $EXP --lr $LR --warmup-lr $WR_LR \
+> '/lustre/scratch/client/vinai/users/ducna22/workspace/mambavision_1/mambavision/result/mambaV_ori_4gpus.txt' 2>&1
+>>>>>>> 824b36cfd00b5d030f36561d33df3d646cdc1c7b
 # --resume /lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/output/train/Original/20240817-001048-mamba_vision_T-224/checkpoint-308.pth.tar
 #  --drop-path ${DR}
