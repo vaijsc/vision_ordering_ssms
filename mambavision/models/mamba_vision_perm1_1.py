@@ -27,6 +27,9 @@ from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
 from einops import rearrange, repeat
 from .registry import register_pip_model
 from pathlib import Path
+from mamba_ssm import Mamba
+import warnings
+warnings.filterwarnings("ignore", message="Overwriting mamba_vision_", category=UserWarning)
 
 
 def _cfg(url='', **kwargs):
@@ -288,7 +291,12 @@ class ConvBlock(nn.Module):
         input = x # torch.Size([128, 80, 56, 56])
         x = self.conv1(x)
         x = self.norm1(x)
+        # import ipdb; ipdb.set_trace() # change 
+        #t_x = type(x)
+        orig_dtype = x.dtype
+        x = x.to(torch.float32)
         x = self.act1(x)
+        x = x.to(orig_dtype)
         x = self.conv2(x)
         x = self.norm2(x)
         if self.layer_scale:
@@ -380,7 +388,6 @@ class MambaVisionMixer(nn.Module):
         hidden_states: (B, L, D)
         Returns: same shape as hidden_states
         """
-        # import ipdb; ipdb.set_trace()
         _, seqlen, _ = hidden_states.shape
         xz = self.in_proj(hidden_states)
         xz = rearrange(xz, "b l d -> b d l")
@@ -581,8 +588,8 @@ class MambaVisionLayer(nn.Module):
         self.window_size = window_size
 
     def forward(self, x):
-        # import ipdb; ipdb.set_trace()
-        _, _, H, W = x.shape # torch.Size([128, 80, 56, 56])
+        # import ipdb; ipdb.set_trace() # torch.Size([128, 1, 640])
+        _, _, H, W = x.shape
 
         if self.transformer_block:
             pad_r = (self.window_size - W % self.window_size) % self.window_size
@@ -592,7 +599,7 @@ class MambaVisionLayer(nn.Module):
                 _, _, Hp, Wp = x.shape
             else:
                 Hp, Wp = H, W
-            x = window_partition(x, self.window_size) # torch.Size([128, 196, 320])
+            x = window_partition(x, self.window_size)
 
         for _, blk in enumerate(self.blocks):
             x = blk(x)
@@ -604,6 +611,54 @@ class MambaVisionLayer(nn.Module):
             return x
         return self.downsample(x)
 
+class MambaLayer(nn.Module):
+    def __init__(self, dim, d_state=64, d_conv=4, expand=2):
+        super().__init__()
+        self.dim = dim
+        self.norm = nn.LayerNorm(dim)
+        self.mamba = Mamba(
+            d_model=dim,  # Model dimension d_model
+            d_state=d_state,  # SSM state expansion factor
+            d_conv=d_conv,  # Local convolution width
+            expand=expand  # Block expansion factor
+        )
+    def forward(self, x):
+        # print('x',x.shape)
+        B, L, C = x.shape
+        # print('x shape = ', x.shape)
+        x_norm = self.norm(x)
+        # print('x_norm shape = ', x_norm.shape)
+        x_mamba = self.mamba(x_norm)    
+        return x_mamba
+
+class ClassBlock(nn.Module):
+    def __init__(self, dim, norm_layer=nn.LayerNorm):
+        super().__init__()
+        self.norm2 = norm_layer(dim)
+        self.attn = MambaLayer(dim)
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            trunc_normal_(m.weight, std=.02)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
+        elif isinstance(m, nn.Conv2d):
+            fan_out = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+            fan_out //= m.groups
+            m.weight.data.normal_(0, math.sqrt(2.0 / fan_out))
+            if m.bias is not None:
+                m.bias.data.zero_()
+
+    def forward(self, x):
+        cls_embed = x[:, :1]
+        cls_embed = self.norm2(cls_embed)
+        # cls_embed = F.relu(cls_embed, inplace=True)
+        cls_embed = cls_embed + self.attn(x[:, :1])
+        return torch.cat([cls_embed, x[:, 1:]], dim=1)
 
 class MambaVision(nn.Module):
     """
@@ -626,6 +681,7 @@ class MambaVision(nn.Module):
                  attn_drop_rate=0.,
                  layer_scale=None,
                  layer_scale_conv=None,
+                 norm_layer=nn.LayerNorm,
                  **kwargs):
         """
         Args:
@@ -648,6 +704,7 @@ class MambaVision(nn.Module):
         super().__init__()
         num_features = int(dim * 2 ** (len(depths) - 1))
         self.num_classes = num_classes
+        self.num_stages = len(depths)
         self.patch_embed = PatchEmbed(in_chans=in_chans, in_dim=in_dim, dim=dim)
         self.drop_path_rate = drop_path_rate
         dpr = [x.item() for x in torch.linspace(0, self.drop_path_rate, sum(depths))]
@@ -675,6 +732,16 @@ class MambaVision(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d(1)
         self.head = nn.Linear(num_features, num_classes) if num_classes > 0 else nn.Identity()
         self.apply(self._init_weights)
+        
+        post_layers = ['ca']
+        self.embed_dims = dim * 2**(len(depths) - 1)
+        self.keys = nn.Parameter(torch.randn(window_size[-1]**2, self.embed_dims))  # Learnable keys
+        self.post_network = nn.ModuleList([
+            ClassBlock(
+                dim = self.embed_dims, 
+                norm_layer=norm_layer) 
+                for _ in range(len(post_layers))
+        ])
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -695,19 +762,70 @@ class MambaVision(nn.Module):
     def no_weight_decay_keywords(self):
         return {'rpb'}
 
+    def forward_cls(self, x):
+        B, N, C = x.shape  # B = 128, N = 49, C = 448
+        # import ipdb; ipdb.set_trace()
+        # Compute self-attention
+        K = self.keys.unsqueeze(0).expand(B, -1, -1)  # Expand keys for batch size
+        attention_scores = torch.matmul(x, K.transpose(-1, -2)) / math.sqrt(C)  # [B, N, num_keys]
+        attention_scores = torch.nn.functional.softmax(attention_scores, dim=-1)  # [B, N, num_keys]
+        attention_output = torch.matmul(attention_scores, x)  # [B, N, C]
+        x = attention_output
+        #import ipdb; ipdb.set_trace()
+        cls_tokens = x.mean(dim=1, keepdim=True)  # [128, 1, 448]
+        dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
+        # Use torch.topk to get top-k values and indices per sample in the batch
+        # Here, k = 49 to get the full rearrangement, but you can choose a different k if needed
+        # import ipdb; ipdb.set_trace()
+        _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
+        rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
+        x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
+        x = torch.cat((cls_tokens, x_reordered), dim=1)  # [128, 50, 448]
+        # import ipdb; ipdb.set_trace()
+        for block in self.post_network:
+            x = block(x)
+        return x
+    
     def forward_features(self, x):
+        # import ipdb; ipdb.set_trace()
         # print('x_shape = ', x.shape)
-        x = self.patch_embed(x) # torch.Size([128, 3, 224, 224]) -> torch.Size([128, 160, 28, 28])
+        x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
         for level in self.levels:
             x = level(x)
-        # torch.Size([128, 640, 7, 7])
-        x = self.norm(x)
-        x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
-        x = torch.flatten(x, 1) # torch.Size([128, 640])
+        x = self.norm(x) # torch.Size([128, 640, 7, 7])
+        # x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
+        # x = torch.flatten(x, 1) # torch.Size([128, 640])
+        
+        # Transform x to shape [128, 49, 640]
+        x = x.view(x.size(0), x.size(1), -1)  # Reshape to [128, 640, 49]
+        x = x.permute(0, 2, 1)  # Permute to [128, 49, 640]
+        # import ipdb; ipdb.set_trace()
+        # output [128, 49, 640]
+        m = self.forward_cls(x)[:, 0]
+        n = self.forward_cls(x)[:, 1:]
+        x = self.forward_cls(x)[:, 0]
+        new_head = m + n[:, -1] # because y[:, -1] contains the whole information
+        # norm = getattr(self, f"norm{self.num_stages}")
+        # import ipdb; ipdb.set_trace()
+        layer_norm = nn.LayerNorm(x.size()[1:]).to(x.device)
+        x = layer_norm(new_head)
         return x
+    
+    # def forward_features(self, x):
+    #     import ipdb; ipdb.set_trace()
+    #     # print('x_shape = ', x.shape)
+    #     x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
+    #     for level in self.levels:
+    #         x = level(x)
+    #     x = self.norm(x) # torch.Size([128, 640, 7, 7])
+    #     x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
+    #     x = torch.flatten(x, 1) # torch.Size([128, 640])
+    #     return x
 
     def forward(self, x):
+        # breakpoint()
         x = self.forward_features(x)
+        # import ipdb; ipdb.set_trace()
         x = self.head(x)
         return x
 
@@ -732,13 +850,11 @@ def mamba_vision_T(pretrained=False, **kwargs):
                         in_dim=32,
                         mlp_ratio=4,
                         resolution=224,
-                        drop_path_rate=0.2, 
+                        drop_path_rate=0.2,  
                         **kwargs)
-    # `, **kwargs
-    #print(kwargs)
-    #print(model.drop_path_rate)
-    # import ipdb; ipdb.set_trace()
-    # print(model)
+    # 
+    # print('hello')
+    # print(model.drop_path_rate)
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
@@ -763,7 +879,7 @@ def mamba_vision_T2(pretrained=False, **kwargs):
                         mlp_ratio=4,
                         resolution=224,
                         drop_path_rate=0.2)
-    # ,**kwargs
+    # **kwargs
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
@@ -787,8 +903,9 @@ def mamba_vision_S(pretrained=False, **kwargs):
                         in_dim=64,
                         mlp_ratio=4,
                         resolution=224,
-                        drop_path_rate=0.2)
-    # ,**kwargs
+                        drop_path_rate=0.2, 
+                        **kwargs)
+    # 
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
@@ -814,8 +931,9 @@ def mamba_vision_B(pretrained=False, **kwargs):
                         resolution=224,
                         drop_path_rate=0.3,
                         layer_scale=1e-5,
-                        layer_scale_conv=None)
-    # ,**kwargs
+                        layer_scale_conv=None,
+                        **kwargs)
+    # 
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
@@ -841,8 +959,9 @@ def mamba_vision_L(pretrained=False, **kwargs):
                         resolution=224,
                         drop_path_rate=0.3,
                         layer_scale=1e-5,
-                        layer_scale_conv=None)
-    # , **kwargs
+                        layer_scale_conv=None ,
+                        **kwargs)
+    #
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
@@ -868,8 +987,10 @@ def mamba_vision_L2(pretrained=False, **kwargs):
                         resolution=224,
                         drop_path_rate=0.3,
                         layer_scale=1e-5,
-                        layer_scale_conv=None)
-    # ,**kwargs
+                        layer_scale_conv=None,
+                        **kwargs
+                        )
+    # 
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
