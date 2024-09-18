@@ -4,7 +4,7 @@ echo "Current path is $PATH"
 echo "Running"
 # nvidia-smi
 echo $CUDA_VISIBLE_DEVICES
-export CUDA_VISIBLE_DEVICES=3,4,5,6
+export CUDA_VISIBLE_DEVICES=2,3,4,5
 export TORCH_DISTRIBUTED_DEBUG=DETAIL
 echo "Using GPUs: $CUDA_VISIBLE_DEVICES"
 DATA_PATH="/root/workspace/dataset/ImageNet1K/data"

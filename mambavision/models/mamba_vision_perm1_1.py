@@ -634,7 +634,6 @@ class MambaLayer(nn.Module):
 class ClassBlock(nn.Module):
     def __init__(self, dim, norm_layer=nn.LayerNorm):
         super().__init__()
-        # self.norm1 = norm_layer(dim)
         self.norm2 = norm_layer(dim)
         self.attn = MambaLayer(dim)
         self.apply(self._init_weights)
@@ -656,6 +655,8 @@ class ClassBlock(nn.Module):
 
     def forward(self, x):
         cls_embed = x[:, :1]
+        cls_embed = self.norm2(cls_embed)
+        # cls_embed = F.relu(cls_embed, inplace=True)
         cls_embed = cls_embed + self.attn(x[:, :1])
         return torch.cat([cls_embed, x[:, 1:]], dim=1)
 
