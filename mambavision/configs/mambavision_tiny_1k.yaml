@@ -132,4 +132,4 @@ warmup_epochs: 20
 warmup_lr: 1.0e-06
 weight_decay: 0.05
 worker_seeding: all
-workers: 8
+workers: 16
