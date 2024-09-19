@@ -42,6 +42,6 @@ RUN_FILE="/lustre/scratch/client/vinai/users/ducna22/workspace/mambavision_1/mam
 
 torchrun --master_port 12368 --nproc_per_node=4 $RUN_FILE --mesa ${MESA} --input-size 3 224 224 --crop-pct=0.875 \
  --data_dir=$DATA_PATH --model $MODEL --amp --weight-decay ${WD} --batch-size $BS --tag $EXP --lr $LR --warmup-lr $WR_LR \
-> '/lustre/scratch/client/vinai/users/ducna22/workspace/mambavision_1/mambavision/result/mambaV_ori_4gpus.txt' 2>&1
+> '/lustre/scratch/client/vinai/users/ducna22/workspace/mambavision_1/mambavision/result/mambaV_ori_4gpus_1.txt' 2>&1
 # --resume /lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/output/train/Original/20240817-001048-mamba_vision_T-224/checkpoint-308.pth.tar
 #  --drop-path ${DR}
