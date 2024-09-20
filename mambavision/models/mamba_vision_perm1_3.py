@@ -572,8 +572,9 @@ class Block_reorder(nn.Module):
         x = torch.cat((cls_embed, x_reordered), dim=1)  # [128, 50, 448]
         x = x + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x)))
         x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
-        x = x[:, 1:]
-        return x
+        m = x[:, 1:]
+        cls = x[:, 0]
+        return x, cls
 
 
 class MambaVisionLayer(nn.Module):
@@ -781,15 +782,18 @@ class MambaVisionLayer_reorder(nn.Module):
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size)
 
-        for _, blk in enumerate(self.blocks):
-            x = blk(x)
+        for idx, blk in enumerate(self.blocks):
+            if idx == 0:
+                x, cls = blk(x)
+            else:
+                x = blk(x)
         if self.transformer_block:
             x = window_reverse(x, self.window_size, Hp, Wp)
             if pad_r > 0 or pad_b > 0:
                 x = x[:, :, :H, :W].contiguous()
         if self.downsample is None:
-            return x
-        return self.downsample(x)
+            return x, cls
+        return self.downsample(x), cls
 
 
 class MambaLayer(nn.Module):
@@ -932,16 +936,6 @@ class MambaVision(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d(1)
         self.head = nn.Linear(num_features, num_classes) if num_classes > 0 else nn.Identity()
         self.apply(self._init_weights)
-        
-        post_layers = ['ca']
-        self.embed_dims = dim * 2**(len(depths) - 1)
-        self.keys = nn.Parameter(torch.randn(window_size[-1]**2, self.embed_dims))  # Learnable keys
-        self.post_network = nn.ModuleList([
-            ClassBlock(
-                dim = self.embed_dims, 
-                norm_layer=norm_layer) 
-                for _ in range(len(post_layers))
-        ])
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -961,38 +955,16 @@ class MambaVision(nn.Module):
     @torch.jit.ignore
     def no_weight_decay_keywords(self):
         return {'rpb'}
-
-    def forward_cls(self, x):
-        B, N, C = x.shape  # B = 128, N = 49, C = 448
-        # import ipdb; ipdb.set_trace()
-        # Compute self-attention
-        K = self.keys.unsqueeze(0).expand(B, -1, -1)  # Expand keys for batch size
-        attention_scores = torch.matmul(x, K.transpose(-1, -2)) / math.sqrt(C)  # [B, N, num_keys]
-        attention_scores = torch.nn.functional.softmax(attention_scores, dim=-1)  # [B, N, num_keys]
-        attention_output = torch.matmul(attention_scores, x)  # [B, N, C]
-        x = attention_output
-        #import ipdb; ipdb.set_trace()
-        cls_tokens = x.mean(dim=1, keepdim=True)  # [128, 1, 448]
-        dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
-        # Use torch.topk to get top-k values and indices per sample in the batch
-        # Here, k = 49 to get the full rearrangement, but you can choose a different k if needed
-        # import ipdb; ipdb.set_trace()
-        _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
-        rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
-        x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
-        x = torch.cat((cls_tokens, x_reordered), dim=1)  # [128, 50, 448]
-        # import ipdb; ipdb.set_trace()
-        for block in self.post_network:
-            x = block(x)
-        return x
     
     def forward_features(self, x):
         # import ipdb; ipdb.set_trace()
         # print('x_shape = ', x.shape)
         x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
         print(self.levels)
+        import ipdb; ipdb.set_trace()
         for level in self.levels:
             x = level(x)
+        
         x = self.norm(x) # torch.Size([128, 640, 7, 7])
         # x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
         # x = torch.flatten(x, 1) # torch.Size([128, 640])
@@ -1000,12 +972,8 @@ class MambaVision(nn.Module):
         # Transform x to shape [128, 49, 640]
         x = x.view(x.size(0), x.size(1), -1)  # Reshape to [128, 640, 49]
         x = x.permute(0, 2, 1)  # Permute to [128, 49, 640]
-        # import ipdb; ipdb.set_trace()
-        # output [128, 49, 640]
-        m = self.forward_cls(x)[:, 0]
-        n = self.forward_cls(x)[:, 1:]
-        x = self.forward_cls(x)[:, 0]
-        new_head = m + n[:, -1] # because y[:, -1] contains the whole information
+
+        new_head = cls + x[:, -1] # because y[:, -1] contains the whole information
         # norm = getattr(self, f"norm{self.num_stages}")
         # import ipdb; ipdb.set_trace()
         layer_norm = nn.LayerNorm(x.size()[1:]).to(x.device)
