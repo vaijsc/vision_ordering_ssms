@@ -561,8 +561,8 @@ class Block_reorder(nn.Module):
         self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
 
     def forward(self, x):
-        B, N, C = x.shape
         import ipdb; ipdb.set_trace()
+        B, N, C = x.shape
         cls_embed = x.mean(dim=1, keepdim=True)
         cls_embed = self.norm1(cls_embed)
         dot_prod = torch.matmul(x, cls_embed.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
@@ -781,14 +781,14 @@ class MambaVisionLayer_reorder(nn.Module):
             else:
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size)
-        #
-        if self.transformer_block:
-            for idx, blk in enumerate(self.blocks):
-                if idx == 0:
-                    x, cls = blk(x)
-                else:
-                    x = blk(x)
-                    
+        print('x shape =', x.shape)
+        
+        for idx, blk in enumerate(self.blocks):
+            if idx == 0:
+                x, cls = blk(x)
+            else:
+                x = blk(x)
+                
         if self.transformer_block:
             x = window_reverse(x, self.window_size, Hp, Wp)
             if pad_r > 0 or pad_b > 0:
