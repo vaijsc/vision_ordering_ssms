@@ -561,7 +561,10 @@ class Block_reorder(nn.Module):
         self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
 
     def forward(self, x):
-        import ipdb; ipdb.set_trace()
+        if x.dim() == 4:
+            B, C, H, W = x.shape  # Unpack the four dimensions first
+            x = x.view(B, C, H * W)  # Flatten the last two dimensions (7 * 7 = 49)
+            B, N, C = x.shape  # Now unpack the three dimensions
         B, N, C = x.shape
         cls_embed = x.mean(dim=1, keepdim=True)
         cls_embed = self.norm1(cls_embed)
