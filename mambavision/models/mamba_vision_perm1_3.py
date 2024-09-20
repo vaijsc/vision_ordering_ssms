@@ -782,11 +782,13 @@ class MambaVisionLayer_reorder(nn.Module):
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size)
         #
-        for idx, blk in enumerate(self.blocks):
-            if idx == 0:
-                x, cls = blk(x)
-            else:
-                x = blk(x)
+        if self.transformer_block:
+            for idx, blk in enumerate(self.blocks):
+                if idx == 0:
+                    x, cls = blk(x)
+                else:
+                    x = blk(x)
+                    
         if self.transformer_block:
             x = window_reverse(x, self.window_size, Hp, Wp)
             if pad_r > 0 or pad_b > 0:
