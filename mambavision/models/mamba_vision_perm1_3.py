@@ -771,7 +771,7 @@ class MambaVisionLayer_reorder(nn.Module):
     def forward(self, x):
         # import ipdb; ipdb.set_trace() # torch.Size([128, 1, 640])
         _, _, H, W = x.shape
-
+        import ipdb; ipdb.set_trace()
         if self.transformer_block:
             pad_r = (self.window_size - W % self.window_size) % self.window_size
             pad_b = (self.window_size - H % self.window_size) % self.window_size
@@ -781,7 +781,7 @@ class MambaVisionLayer_reorder(nn.Module):
             else:
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size)
-        #import ipdb; ipdb.set_trace()
+        #
         for idx, blk in enumerate(self.blocks):
             if idx == 0:
                 x, cls = blk(x)
