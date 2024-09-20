@@ -762,16 +762,15 @@ class MambaVisionLayer_reorder(nn.Module):
                                 layer_scale=layer_scale)
                 self.blocks.append(block)
             self.transformer_block = True
-            import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
 
         self.downsample = None if not downsample else Downsample(dim=dim)
         self.do_gt = False
         self.window_size = window_size
 
     def forward(self, x):
-        # import ipdb; ipdb.set_trace() # torch.Size([128, 1, 640])
+        import ipdb; ipdb.set_trace() # torch.Size([128, 1, 640])
         _, _, H, W = x.shape
-        import ipdb; ipdb.set_trace()
         if self.transformer_block:
             pad_r = (self.window_size - W % self.window_size) % self.window_size
             pad_b = (self.window_size - H % self.window_size) % self.window_size
