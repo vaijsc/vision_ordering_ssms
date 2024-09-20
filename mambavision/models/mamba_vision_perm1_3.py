@@ -973,14 +973,14 @@ class MambaVision(nn.Module):
         x = self.norm(x) # torch.Size([128, 640, 7, 7])
         # x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
         # x = torch.flatten(x, 1) # torch.Size([128, 640])
-        
+        import ipdb; ipdb.set_trace()
         # Transform x to shape [128, 49, 640]
         x = x.view(x.size(0), x.size(1), -1)  # Reshape to [128, 640, 49]
         x = x.permute(0, 2, 1)  # Permute to [128, 49, 640]
 
         new_head = cls + x[:, -1] # because y[:, -1] contains the whole information
         # norm = getattr(self, f"norm{self.num_stages}")
-        # import ipdb; ipdb.set_trace()
+        
         layer_norm = nn.LayerNorm(x.size()[1:]).to(x.device)
         x = layer_norm(new_head)
         
