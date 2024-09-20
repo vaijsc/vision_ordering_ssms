@@ -564,6 +564,7 @@ class Block_reorder(nn.Module):
         if x.dim() == 4:
             B, C, H, W = x.shape  # Unpack the four dimensions first
             x = x.view(B, C, H * W)  # Flatten the last two dimensions (7 * 7 = 49)
+            x = x.reshape(B, H * W, C)
             B, N, C = x.shape  # Now unpack the three dimensions
         B, N, C = x.shape
         cls_embed = x.mean(dim=1, keepdim=True)
