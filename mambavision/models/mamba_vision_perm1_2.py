@@ -572,6 +572,7 @@ class Block_reorder(nn.Module):
         x = torch.cat((cls_embed, x_reordered), dim=1)  # [128, 50, 448]
         x = x + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x)))
         x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
+        x = x[:, 1:]
         return x
 
 
