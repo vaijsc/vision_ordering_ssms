@@ -656,6 +656,7 @@ class ClassBlock(nn.Module):
 
     def forward(self, x):
         cls_embed = x[:, :1]
+        cls_embed = self.norm2(cls_embed)
         cls_embed = cls_embed + self.attn(x[:, :1])
         return torch.cat([cls_embed, x[:, 1:]], dim=1)
 
