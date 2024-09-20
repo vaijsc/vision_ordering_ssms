@@ -781,7 +781,7 @@ class MambaVisionLayer_reorder(nn.Module):
             else:
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size)
-        import ipdb; ipdb.set_trace()
+        #import ipdb; ipdb.set_trace()
         for idx, blk in enumerate(self.blocks):
             if idx == 0:
                 x, cls = blk(x)
@@ -896,7 +896,7 @@ class MambaVision(nn.Module):
         self.levels = nn.ModuleList()
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
-            if i == 2:
+            if i <= 2:
                 level = MambaVisionLayer(dim=int(dim * 2 ** i),
                                         depth=depths[i],
                                         num_heads=num_heads[i],
