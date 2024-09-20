@@ -562,7 +562,7 @@ class Block_reorder(nn.Module):
 
     def forward(self, x):
         B, N, C = x.shape
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         cls_embed = x.mean(dim=1, keepdim=True)
         cls_embed = self.norm1(cls_embed)
         dot_prod = torch.matmul(x, cls_embed.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
@@ -572,6 +572,7 @@ class Block_reorder(nn.Module):
         x = torch.cat((cls_embed, x_reordered), dim=1)  # [128, 50, 448]
         x = x + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x)))
         x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
+        x = x[:, 1:]
         return x
 
 
