@@ -574,7 +574,7 @@ class Block_reorder(nn.Module):
         x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
         m = x[:, 1:]
         cls = x[:, 0]
-        return x, cls
+        return m, cls
 
 
 class MambaVisionLayer(nn.Module):
@@ -781,7 +781,7 @@ class MambaVisionLayer_reorder(nn.Module):
             else:
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size)
-
+        import ipdb; ipdb.set_trace()
         for idx, blk in enumerate(self.blocks):
             if idx == 0:
                 x, cls = blk(x)
