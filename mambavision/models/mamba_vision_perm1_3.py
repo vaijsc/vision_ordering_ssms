@@ -964,7 +964,7 @@ class MambaVision(nn.Module):
         # import ipdb; ipdb.set_trace()
         for level in self.levels:
             if level == self.levels[-1]:
-                import ipdb; ipdb.set_trace()
+                # import ipdb; ipdb.set_trace()
                 # Iterate over each block in the last level
                 for i, block in enumerate(self.levels[-1].blocks):
                     if i == 0:
