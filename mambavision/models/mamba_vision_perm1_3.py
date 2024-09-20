@@ -561,11 +561,6 @@ class Block_reorder(nn.Module):
         self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
 
     def forward(self, x):
-        if x.dim() == 4:
-            B, C, H, W = x.shape  # Unpack the four dimensions first
-            x = x.view(B, C, H * W)  # Flatten the last two dimensions (7 * 7 = 49)
-            x = x.reshape(B, H * W, C)
-            B, N, C = x.shape  # Now unpack the three dimensions
         B, N, C = x.shape
         cls_embed = x.mean(dim=1, keepdim=True)
         cls_embed = self.norm1(cls_embed)
@@ -767,6 +762,7 @@ class MambaVisionLayer_reorder(nn.Module):
                                 layer_scale=layer_scale)
                 self.blocks.append(block)
             self.transformer_block = True
+            import ipdb; ipdb.set_trace()
 
         self.downsample = None if not downsample else Downsample(dim=dim)
         self.do_gt = False
@@ -998,17 +994,6 @@ class MambaVision(nn.Module):
         x = layer_norm(new_head)
         
         return x
-    
-    # def forward_features(self, x):
-    #     import ipdb; ipdb.set_trace()
-    #     # print('x_shape = ', x.shape)
-    #     x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
-    #     for level in self.levels:
-    #         x = level(x)
-    #     x = self.norm(x) # torch.Size([128, 640, 7, 7])
-    #     x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
-    #     x = torch.flatten(x, 1) # torch.Size([128, 640])
-    #     return x
 
     def forward(self, x):
         # breakpoint()
