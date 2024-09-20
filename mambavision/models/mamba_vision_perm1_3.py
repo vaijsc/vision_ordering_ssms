@@ -780,7 +780,7 @@ class MambaVisionLayer_reorder(nn.Module):
             else:
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size)
-        print('x shape =', x.shape)
+        # print('x shape =', x.shape)
         
         for idx, blk in enumerate(self.blocks):
             if idx == 0:
@@ -961,7 +961,7 @@ class MambaVision(nn.Module):
         # import ipdb; ipdb.set_trace()
         # print('x_shape = ', x.shape)
         x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
-        print(self.levels)
+        # print(self.levels)
         # import ipdb; ipdb.set_trace()
         for level in self.levels:
             if level == self.levels[-1]:
