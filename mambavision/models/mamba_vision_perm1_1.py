@@ -807,9 +807,9 @@ class MambaVision(nn.Module):
         new_head = m + n[:, -1] # because y[:, -1] contains the whole information
         # norm = getattr(self, f"norm{self.num_stages}")
         # import ipdb; ipdb.set_trace()
-        layer_norm = nn.LayerNorm(x.size()[1:]).to(x.device)
-        x = layer_norm(new_head)
-        return x
+        layer_norm = nn.LayerNorm(x.size()[-1]).to(x.device)
+        cls_token = layer_norm(new_head)
+        return cls_token
     
     # def forward_features(self, x):
     #     import ipdb; ipdb.set_trace()
