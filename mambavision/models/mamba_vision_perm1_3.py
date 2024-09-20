@@ -562,7 +562,7 @@ class Block_reorder(nn.Module):
 
     def forward(self, x):
         B, N, C = x.shape
-        # import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
         cls_embed = x.mean(dim=1, keepdim=True)
         cls_embed = self.norm1(cls_embed)
         dot_prod = torch.matmul(x, cls_embed.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
@@ -961,10 +961,21 @@ class MambaVision(nn.Module):
         # print('x_shape = ', x.shape)
         x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
         print(self.levels)
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         for level in self.levels:
-            x = level(x)
-        
+            if level == self.levels[-1]:
+                # Iterate over each block in the last level
+                for i, block in enumerate(self.levels[-1].blocks):
+                    if i == 0:
+                        # For the first block, return both `x` and `cls`
+                        x, cls = block(x)
+                    else:
+                        # For subsequent blocks, only return `x`
+                        x = block(x)
+            else:
+                # For all other levels, treat `level` as callable and pass `x`
+                x = level(x)
+                
         x = self.norm(x) # torch.Size([128, 640, 7, 7])
         # x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
         # x = torch.flatten(x, 1) # torch.Size([128, 640])
@@ -978,6 +989,7 @@ class MambaVision(nn.Module):
         # import ipdb; ipdb.set_trace()
         layer_norm = nn.LayerNorm(x.size()[1:]).to(x.device)
         x = layer_norm(new_head)
+        
         return x
     
     # def forward_features(self, x):
