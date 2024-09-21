@@ -532,9 +532,12 @@ class Block_reorder(nn.Module):
                  norm_layer=nn.LayerNorm, 
                  Mlp_block=Mlp,
                  layer_scale=None,
+                 window_size=True,
                  ):
         super().__init__()
         self.norm1 = norm_layer(dim)
+        self.embed_dims = dim
+        self.window_size = window_size
         if counter in transformer_blocks:
             self.mixer = Attention(
             dim,
@@ -559,9 +562,16 @@ class Block_reorder(nn.Module):
         use_layer_scale = layer_scale is not None and type(layer_scale) in [int, float]
         self.gamma_1 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
         self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
-
+        self.keys = nn.Parameter(torch.randn(window_size[-1]**2, self.embed_dims))  # Learnable keys
+        
     def forward(self, x):
         B, N, C = x.shape
+        import ipdb; ipdb.set_trace()
+        K = self.keys.unsqueeze(0).expand(B, -1, -1)  # Expand keys for batch size
+        attention_scores = torch.matmul(x, K.transpose(-1, -2)) / math.sqrt(C)  # [B, N, num_keys]
+        attention_scores = torch.nn.functional.softmax(attention_scores, dim=-1)  # [B, N, num_keys]
+        attention_output = torch.matmul(attention_scores, x)  # [B, N, C]
+        x = attention_output
         cls_embed = x.mean(dim=1, keepdim=True)
         cls_embed = self.norm1(cls_embed)
         dot_prod = torch.matmul(x, cls_embed.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
@@ -746,7 +756,8 @@ class MambaVisionLayer_reorder(nn.Module):
                                 drop=drop,
                                 attn_drop=attn_drop,
                                 drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-                                layer_scale=layer_scale)
+                                layer_scale=layer_scale,
+                                window_size=window_size)
                 else:
                     block = Block(dim=dim,
                                 counter=i, 
