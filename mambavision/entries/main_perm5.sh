@@ -27,15 +27,15 @@ echo $CUDA_VISIBLE_DEVICES
 DATA_PATH="/lustre/scratch/client/vinai/users/phinh2/workspace/dataset/imagenet"
 MODEL=mamba_vision_T
 BS=128
-#EXP=perm1-5
-EXP=Test
+EXP=perm1-5
+#EXP=Test
 LR=8e-4
 WD=0.05
 WR_LR=1e-6
 # DR=0.2
 MESA=0.25
 RUN_FILE="/lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/mambavision/train_perm1_4.py"
-torchrun --master_port 12370 --nproc_per_node=1 $RUN_FILE --mesa ${MESA} --input-size 3 224 224 --crop-pct=0.875 \
+torchrun --master_port 12370 --nproc_per_node=4 $RUN_FILE --mesa ${MESA} --input-size 3 224 224 --crop-pct=0.875 \
  --data_dir=$DATA_PATH --model $MODEL --amp --weight-decay ${WD}  --batch-size $BS --tag $EXP --lr $LR --warmup-lr $WR_LR # \
 # --resume /lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/output/train/Original/20240817-001048-mamba_vision_T-224/checkpoint-308.pth.tar
 # --drop-path ${DR}s
