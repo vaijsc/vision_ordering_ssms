@@ -562,7 +562,7 @@ class Block_reorder(nn.Module):
         use_layer_scale = layer_scale is not None and type(layer_scale) in [int, float]
         self.gamma_1 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
         self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
-        self.keys = nn.Parameter(torch.randn(window_size[-1]**2, self.embed_dims))  # Learnable keys
+        self.keys = nn.Parameter(torch.randn(window_size**2, self.embed_dims))  # Learnable keys
         
     def forward(self, x):
         B, N, C = x.shape
