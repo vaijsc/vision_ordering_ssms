@@ -566,7 +566,8 @@ class Block_reorder(nn.Module):
         
     def forward(self, x):
         B, N, C = x.shape
-        import ipdb; ipdb.set_trace()
+        #import ipdb; ipdb.set_trace()
+        breakpoint()
         K = self.keys.unsqueeze(0).expand(B, -1, -1)  # Expand keys for batch size
         attention_scores = torch.matmul(x, K.transpose(-1, -2)) / math.sqrt(C)  # [B, N, num_keys]
         attention_scores = torch.nn.functional.softmax(attention_scores, dim=-1)  # [B, N, num_keys]
