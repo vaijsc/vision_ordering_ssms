@@ -3,7 +3,7 @@
 #SBATCH --error=/lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/mambavision/result/mambaV_p1-2.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=4
-#SBATCH --nodelist=sdc2-hpc-dgx-a100-017
+#SBATCH --nodelist=sdc2-hpc-dgx-a100-020
 #SBATCH --mem-per-gpu=50G
 #SBATCH --cpus-per-gpu=40
 #SBATCH --partition=research
@@ -27,8 +27,8 @@ echo $CUDA_VISIBLE_DEVICES
 DATA_PATH="/lustre/scratch/client/vinai/users/phinh2/workspace/dataset/imagenet"
 MODEL=mamba_vision_T
 BS=128
-EXP=perm1-2
-#EXP=Test
+#EXP=perm1-2
+EXP=Test
 LR=8e-4
 WD=0.05
 WR_LR=1e-6
