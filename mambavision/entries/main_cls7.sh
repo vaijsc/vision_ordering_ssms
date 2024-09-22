@@ -5,7 +5,7 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --nodelist=sdc2-hpc-dgx-a100-012
 #SBATCH --mem-per-gpu=50G
-#SBATCH --cpus-per-gpu=40
+#SBATCH --cpus-per-gpu=16
 #SBATCH --partition=applied
 #SBATCH --mail-type=all
 #SBATCH --mail-user=v.AnhND81@vinai.io
