@@ -739,7 +739,7 @@ class MambaVision(nn.Module):
         cls_head = m + n
         # norm = getattr(self, f"norm{self.num_stages}")
         # import ipdb; ipdb.set_trace()
-        layer_norm = nn.LayerNorm(x.size()[1:]).to(x.device)
+        layer_norm = nn.LayerNorm(m.size()[1:]).to(x.device)
         cls_head = layer_norm(cls_head)
         return cls_head
 
