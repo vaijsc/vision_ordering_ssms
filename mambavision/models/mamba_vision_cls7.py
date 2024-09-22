@@ -631,7 +631,7 @@ class MambaVisionLayer_reorder(nn.Module):
         self.transformer_block = False
         self.depth = depth
         # Initialize class token
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim * 2))
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim))
 
         # Separate MambaMixer and Attention blocks
         if conv:
@@ -693,13 +693,7 @@ class MambaVisionLayer_reorder(nn.Module):
         # import ipdb; ipdb.set_trace()
         # Apply MambaMixer blocks (first 4 blocks)
         for i, blk in enumerate(self.blocks):
-            if i == self.indices + 1:  # Add class token before the first attention block (after 4 MambaMixer blocks)
-                if self.transformer_block:
-                    x = window_reverse(x, self.window_size, Hp, Wp)
-                    if pad_r > 0 or pad_b > 0:
-                        x = x[:, :, :H, :W].contiguous()
-                    x = self.downsample(x)
-                    x = window_partition(x, self.window_size // 2)
+            if i == 0:  # Add class token before the first SSMs block
                 cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, dim * 2)
                 x = torch.cat((cls_tokens, x), dim=1)  # (B, 1 + num_patches, dim * 2)
                 x = blk(x)
@@ -723,9 +717,9 @@ class MambaVisionLayer_reorder(nn.Module):
                 x = x[:, :, :H, :W].contiguous()
 
         # Downsample if applicable
-        # if self.downsample is None:
-        #     return x  # Return both x and class token
-        return x 
+        if self.downsample is None:
+            return x  # Return both x and class token
+        return self.downsample(x)
 
 
 
@@ -875,8 +869,9 @@ def mamba_vision_T(pretrained=False, **kwargs):
                         in_dim=32,
                         mlp_ratio=4,
                         resolution=224,
-                        drop_path_rate=0.2)
-    # , **kwargs
+                        drop_path_rate=0.2, 
+                        **kwargs)
+    # 
     # import ipdb; ipdb.set_trace()
     # print(model)
     model.pretrained_cfg = pretrained_cfg
