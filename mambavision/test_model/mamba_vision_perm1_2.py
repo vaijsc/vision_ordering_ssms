@@ -516,6 +516,64 @@ class Block(nn.Module):
         x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
         return x
 
+class Block_reorder(nn.Module):
+    def __init__(self, 
+                 dim, 
+                 num_heads, 
+                 counter, 
+                 transformer_blocks, 
+                 mlp_ratio=4., 
+                 qkv_bias=False, 
+                 qk_scale=False, 
+                 drop=0., 
+                 attn_drop=0.,
+                 drop_path=0., 
+                 act_layer=nn.GELU, 
+                 norm_layer=nn.LayerNorm, 
+                 Mlp_block=Mlp,
+                 layer_scale=None,
+                 ):
+        super().__init__()
+        self.norm1 = norm_layer(dim)
+        if counter in transformer_blocks:
+            self.mixer = Attention(
+            dim,
+            num_heads=num_heads,
+            qkv_bias=qkv_bias,
+            qk_norm=qk_scale,
+            attn_drop=attn_drop,
+            proj_drop=drop,
+            norm_layer=norm_layer,
+        )
+        else:
+            self.mixer = MambaVisionMixer(d_model=dim, 
+                                          d_state=8,  
+                                          d_conv=3,    
+                                          expand=1
+                                          )
+
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.norm2 = norm_layer(dim)
+        mlp_hidden_dim = int(dim * mlp_ratio)
+        self.mlp = Mlp_block(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+        use_layer_scale = layer_scale is not None and type(layer_scale) in [int, float]
+        self.gamma_1 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
+        self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
+
+    def forward(self, x):
+        B, N, C = x.shape
+        cls_embed = x.mean(dim=1, keepdim=True)
+        cls_embed = self.norm1(cls_embed)
+        dot_prod = torch.matmul(x, cls_embed.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
+        _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
+        rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
+        x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
+        x = torch.cat((cls_embed, x_reordered), dim=1)  # [128, 50, 448]
+        x = x + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x)))
+        x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
+        x = x[:, 1:]
+        return x
+
 
 class MambaVisionLayer(nn.Module):
     """
@@ -611,6 +669,128 @@ class MambaVisionLayer(nn.Module):
             return x
         return self.downsample(x)
 
+class MambaVisionLayer_reorder(nn.Module):
+    """
+    MambaVision layer"
+    """
+
+    def __init__(self,
+                 dim,
+                 depth,
+                 num_heads,
+                 window_size,
+                 conv=False,
+                 downsample=True,
+                 mlp_ratio=4.,
+                 qkv_bias=True,
+                 qk_scale=None,
+                 drop=0.,
+                 attn_drop=0.,
+                 drop_path=0.,
+                 layer_scale=None,
+                 layer_scale_conv=None,
+                 transformer_blocks = [],
+    ):
+        """
+        Args:
+            dim: feature size dimension.
+            depth: number of layers in each stage.
+            window_size: window size in each stage.
+            conv: bool argument for conv stage flag.
+            downsample: bool argument for down-sampling.
+            mlp_ratio: MLP ratio.
+            num_heads: number of heads in each stage.
+            qkv_bias: bool argument for query, key, value learnable bias.
+            qk_scale: bool argument to scaling query, key.
+            drop: dropout rate.
+            attn_drop: attention dropout rate.
+            drop_path: drop path rate.
+            norm_layer: normalization layer.
+            layer_scale: layer scaling coefficient.
+            layer_scale_conv: conv layer scaling coefficient.
+            transformer_blocks: list of transformer blocks.
+        """
+
+        super().__init__()
+        self.conv = conv
+        self.transformer_block = False
+        if conv:
+            self.blocks = nn.ModuleList([ConvBlock(dim=dim,
+                                                   drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                                   layer_scale=layer_scale_conv)
+                                                   for i in range(depth)])
+            self.transformer_block = False
+        else:
+            self.blocks = nn.ModuleList([Block(dim=dim,
+                                               counter=i, 
+                                               transformer_blocks=transformer_blocks,
+                                               num_heads=num_heads,
+                                               mlp_ratio=mlp_ratio,
+                                               qkv_bias=qkv_bias,
+                                               qk_scale=qk_scale,
+                                               drop=drop,
+                                               attn_drop=attn_drop,
+                                               drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                               layer_scale=layer_scale)
+                                               for i in range(depth)])
+            self.blocks = nn.ModuleList()
+            for i in range (depth):
+                if i == 0:
+                    block = Block_reorder(dim=dim,
+                                counter=i, 
+                                transformer_blocks=transformer_blocks,
+                                num_heads=num_heads,
+                                mlp_ratio=mlp_ratio,
+                                qkv_bias=qkv_bias,
+                                qk_scale=qk_scale,
+                                drop=drop,
+                                attn_drop=attn_drop,
+                                drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                layer_scale=layer_scale)
+                else:
+                    block = Block(dim=dim,
+                                counter=i, 
+                                transformer_blocks=transformer_blocks,
+                                num_heads=num_heads,
+                                mlp_ratio=mlp_ratio,
+                                qkv_bias=qkv_bias,
+                                qk_scale=qk_scale,
+                                drop=drop,
+                                attn_drop=attn_drop,
+                                drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                layer_scale=layer_scale)
+                self.blocks.append(block)
+            self.transformer_block = True
+
+        self.downsample = None if not downsample else Downsample(dim=dim)
+        self.do_gt = False
+        self.window_size = window_size
+
+    def forward(self, x):
+        # import ipdb; ipdb.set_trace() # torch.Size([128, 1, 640])
+        _, _, H, W = x.shape
+
+        if self.transformer_block:
+            pad_r = (self.window_size - W % self.window_size) % self.window_size
+            pad_b = (self.window_size - H % self.window_size) % self.window_size
+            if pad_r > 0 or pad_b > 0:
+                x = torch.nn.functional.pad(x, (0,pad_r,0,pad_b))
+                _, _, Hp, Wp = x.shape
+            else:
+                Hp, Wp = H, W
+            x = window_partition(x, self.window_size)
+
+        for _, blk in enumerate(self.blocks):
+            x = blk(x)
+        if self.transformer_block:
+            x = window_reverse(x, self.window_size, Hp, Wp)
+            if pad_r > 0 or pad_b > 0:
+                x = x[:, :, :H, :W].contiguous()
+        if self.downsample is None:
+            return x
+        return self.downsample(x)
+
+
 class MambaLayer(nn.Module):
     def __init__(self, dim, d_state=64, d_conv=4, expand=2):
         super().__init__()
@@ -634,7 +814,6 @@ class MambaLayer(nn.Module):
 class ClassBlock(nn.Module):
     def __init__(self, dim, norm_layer=nn.LayerNorm):
         super().__init__()
-        # self.norm1 = norm_layer(dim)
         self.norm2 = norm_layer(dim)
         self.attn = MambaLayer(dim)
         self.apply(self._init_weights)
@@ -657,6 +836,7 @@ class ClassBlock(nn.Module):
     def forward(self, x):
         cls_embed = x[:, :1]
         cls_embed = self.norm2(cls_embed)
+        # cls_embed = F.relu(cls_embed, inplace=True)
         cls_embed = cls_embed + self.attn(x[:, :1])
         return torch.cat([cls_embed, x[:, 1:]], dim=1)
 
@@ -711,37 +891,47 @@ class MambaVision(nn.Module):
         self.levels = nn.ModuleList()
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
-            level = MambaVisionLayer(dim=int(dim * 2 ** i),
-                                     depth=depths[i],
-                                     num_heads=num_heads[i],
-                                     window_size=window_size[i],
-                                     mlp_ratio=mlp_ratio,
-                                     qkv_bias=qkv_bias,
-                                     qk_scale=qk_scale,
-                                     conv=conv,
-                                     drop=drop_rate,
-                                     attn_drop=attn_drop_rate,
-                                     drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
-                                     downsample=(i < 3),
-                                     layer_scale=layer_scale,
-                                     layer_scale_conv=layer_scale_conv,
-                                     transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
-                                     )
+            if i <= 2:
+                level = MambaVisionLayer(dim=int(dim * 2 ** i),
+                                        depth=depths[i],
+                                        num_heads=num_heads[i],
+                                        window_size=window_size[i],
+                                        mlp_ratio=mlp_ratio,
+                                        qkv_bias=qkv_bias,
+                                        qk_scale=qk_scale,
+                                        conv=conv,
+                                        drop=drop_rate,
+                                        attn_drop=attn_drop_rate,
+                                        drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
+                                        downsample=(i < 3),
+                                        layer_scale=layer_scale,
+                                        layer_scale_conv=layer_scale_conv,
+                                        transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
+                                        )
+            else:
+                level = MambaVisionLayer_reorder(dim=int(dim * 2 ** i),
+                                        depth=depths[i],
+                                        num_heads=num_heads[i],
+                                        window_size=window_size[i],
+                                        mlp_ratio=mlp_ratio,
+                                        qkv_bias=qkv_bias,
+                                        qk_scale=qk_scale,
+                                        conv=conv,
+                                        drop=drop_rate,
+                                        attn_drop=attn_drop_rate,
+                                        drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
+                                        downsample=(i < 3),
+                                        layer_scale=layer_scale,
+                                        layer_scale_conv=layer_scale_conv,
+                                        transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
+                                        )
+            
             self.levels.append(level)
         self.norm = nn.BatchNorm2d(num_features)
         self.avgpool = nn.AdaptiveAvgPool2d(1)
         self.head = nn.Linear(num_features, num_classes) if num_classes > 0 else nn.Identity()
         self.apply(self._init_weights)
         
-        post_layers = ['ca']
-        self.embed_dims = dim * 2**(len(depths) - 1)
-        self.keys = nn.Parameter(torch.randn(window_size[-1]**2, self.embed_dims))  # Learnable keys
-        self.post_network = nn.ModuleList([
-            ClassBlock(
-                dim = self.embed_dims, 
-                norm_layer=norm_layer) 
-                for _ in range(len(post_layers))
-        ])
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -761,64 +951,18 @@ class MambaVision(nn.Module):
     @torch.jit.ignore
     def no_weight_decay_keywords(self):
         return {'rpb'}
-
-    def forward_cls(self, x):
-        B, N, C = x.shape  # B = 128, N = 49, C = 448
-        # import ipdb; ipdb.set_trace()
-        # Compute self-attention
-        K = self.keys.unsqueeze(0).expand(B, -1, -1)  # Expand keys for batch size
-        attention_scores = torch.matmul(x, K.transpose(-1, -2)) / math.sqrt(C)  # [B, N, num_keys]
-        attention_scores = torch.nn.functional.softmax(attention_scores, dim=-1)  # [B, N, num_keys]
-        attention_output = torch.matmul(attention_scores, x)  # [B, N, C]
-        x = attention_output
-        #import ipdb; ipdb.set_trace()
-        cls_tokens = x.mean(dim=1, keepdim=True)  # [128, 1, 448]
-        dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
-        # Use torch.topk to get top-k values and indices per sample in the batch
-        # Here, k = 49 to get the full rearrangement, but you can choose a different k if needed
-        # import ipdb; ipdb.set_trace()
-        _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
-        rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
-        x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
-        x = torch.cat((cls_tokens, x_reordered), dim=1)  # [128, 50, 448]
-        # import ipdb; ipdb.set_trace()
-        for block in self.post_network:
-            x = block(x)
-        return x
     
     def forward_features(self, x):
-        # import ipdb; ipdb.set_trace()
         # print('x_shape = ', x.shape)
-        x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
+        x = self.patch_embed(x) # torch.Size([128, 3, 224, 224]) -> torch.Size([128, 160, 28, 28])
         for level in self.levels:
             x = level(x)
-        x = self.norm(x) # torch.Size([128, 640, 7, 7])
-        # x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
-        # x = torch.flatten(x, 1) # torch.Size([128, 640])
-        
-        # Transform x to shape [128, 49, 640]
-        x = x.view(x.size(0), x.size(1), -1)  # Reshape to [128, 640, 49]
-        x = x.permute(0, 2, 1)  # Permute to [128, 49, 640]
-        
-        # output [128, 49, 640]
-        x = self.forward_cls(x)[:, 0]
-        # norm = getattr(self, f"norm{self.num_stages}")
-        # import ipdb; ipdb.set_trace()
-        layer_norm = nn.LayerNorm(x.size()[1:]).to(x.device)
-        x = layer_norm(x)
+        # torch.Size([128, 640, 7, 7])
+        x = self.norm(x)
+        x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
+        x = torch.flatten(x, 1) # torch.Size([128, 640])
         return x
     
-    # def forward_features(self, x):
-    #     import ipdb; ipdb.set_trace()
-    #     # print('x_shape = ', x.shape)
-    #     x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
-    #     for level in self.levels:
-    #         x = level(x)
-    #     x = self.norm(x) # torch.Size([128, 640, 7, 7])
-    #     x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
-    #     x = torch.flatten(x, 1) # torch.Size([128, 640])
-    #     return x
-
     def forward(self, x):
         # breakpoint()
         x = self.forward_features(x)
@@ -847,10 +991,11 @@ def mamba_vision_T(pretrained=False, **kwargs):
                         in_dim=32,
                         mlp_ratio=4,
                         resolution=224,
-                        drop_path_rate=0.2)
-    # , **kwargs
-    # import ipdb; ipdb.set_trace()
-    # print(model)
+                        drop_path_rate=0.2,  
+                        **kwargs)
+    # 
+    # print('hello')
+    # print(model.drop_path_rate)
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
@@ -899,8 +1044,9 @@ def mamba_vision_S(pretrained=False, **kwargs):
                         in_dim=64,
                         mlp_ratio=4,
                         resolution=224,
-                        drop_path_rate=0.2)
-    # , **kwargs
+                        drop_path_rate=0.2, 
+                        **kwargs)
+    # 
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
@@ -926,8 +1072,9 @@ def mamba_vision_B(pretrained=False, **kwargs):
                         resolution=224,
                         drop_path_rate=0.3,
                         layer_scale=1e-5,
-                        layer_scale_conv=None)
-    # ,**kwargs
+                        layer_scale_conv=None,
+                        **kwargs)
+    # 
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
@@ -953,8 +1100,9 @@ def mamba_vision_L(pretrained=False, **kwargs):
                         resolution=224,
                         drop_path_rate=0.3,
                         layer_scale=1e-5,
-                        layer_scale_conv=None)
-    # ,**kwargs
+                        layer_scale_conv=None ,
+                        **kwargs)
+    #
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
@@ -980,9 +1128,10 @@ def mamba_vision_L2(pretrained=False, **kwargs):
                         resolution=224,
                         drop_path_rate=0.3,
                         layer_scale=1e-5,
-                        layer_scale_conv=None
+                        layer_scale_conv=None,
+                        **kwargs
                         )
-    # **kwargs
+    # 
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:

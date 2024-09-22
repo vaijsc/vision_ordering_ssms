@@ -634,7 +634,6 @@ class MambaLayer(nn.Module):
 class ClassBlock(nn.Module):
     def __init__(self, dim, norm_layer=nn.LayerNorm):
         super().__init__()
-        # self.norm1 = norm_layer(dim)
         self.norm2 = norm_layer(dim)
         self.attn = MambaLayer(dim)
         self.apply(self._init_weights)
@@ -657,6 +656,7 @@ class ClassBlock(nn.Module):
     def forward(self, x):
         cls_embed = x[:, :1]
         cls_embed = self.norm2(cls_embed)
+        # cls_embed = F.relu(cls_embed, inplace=True)
         cls_embed = cls_embed + self.attn(x[:, :1])
         return torch.cat([cls_embed, x[:, 1:]], dim=1)
 
@@ -799,13 +799,16 @@ class MambaVision(nn.Module):
         # Transform x to shape [128, 49, 640]
         x = x.view(x.size(0), x.size(1), -1)  # Reshape to [128, 640, 49]
         x = x.permute(0, 2, 1)  # Permute to [128, 49, 640]
-        
+        # import ipdb; ipdb.set_trace()
         # output [128, 49, 640]
+        m = self.forward_cls(x)[:, 0]
+        n = self.forward_cls(x)[:, 1:]
         x = self.forward_cls(x)[:, 0]
+        new_head = m + n[:, -1] # because y[:, -1] contains the whole information
         # norm = getattr(self, f"norm{self.num_stages}")
         # import ipdb; ipdb.set_trace()
         layer_norm = nn.LayerNorm(x.size()[1:]).to(x.device)
-        x = layer_norm(x)
+        x = layer_norm(new_head)
         return x
     
     # def forward_features(self, x):
@@ -847,10 +850,11 @@ def mamba_vision_T(pretrained=False, **kwargs):
                         in_dim=32,
                         mlp_ratio=4,
                         resolution=224,
-                        drop_path_rate=0.2)
-    # , **kwargs
-    # import ipdb; ipdb.set_trace()
-    # print(model)
+                        drop_path_rate=0.2,  
+                        **kwargs)
+    # 
+    # print('hello')
+    # print(model.drop_path_rate)
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
@@ -899,8 +903,9 @@ def mamba_vision_S(pretrained=False, **kwargs):
                         in_dim=64,
                         mlp_ratio=4,
                         resolution=224,
-                        drop_path_rate=0.2)
-    # , **kwargs
+                        drop_path_rate=0.2, 
+                        **kwargs)
+    # 
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
@@ -926,8 +931,9 @@ def mamba_vision_B(pretrained=False, **kwargs):
                         resolution=224,
                         drop_path_rate=0.3,
                         layer_scale=1e-5,
-                        layer_scale_conv=None)
-    # ,**kwargs
+                        layer_scale_conv=None,
+                        **kwargs)
+    # 
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
@@ -953,8 +959,9 @@ def mamba_vision_L(pretrained=False, **kwargs):
                         resolution=224,
                         drop_path_rate=0.3,
                         layer_scale=1e-5,
-                        layer_scale_conv=None)
-    # ,**kwargs
+                        layer_scale_conv=None ,
+                        **kwargs)
+    #
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
@@ -980,9 +987,10 @@ def mamba_vision_L2(pretrained=False, **kwargs):
                         resolution=224,
                         drop_path_rate=0.3,
                         layer_scale=1e-5,
-                        layer_scale_conv=None
+                        layer_scale_conv=None,
+                        **kwargs
                         )
-    # **kwargs
+    # 
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
