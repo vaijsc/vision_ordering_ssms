@@ -560,7 +560,7 @@ def main():
         start_epoch = resume_epoch
     if lr_scheduler is not None and start_epoch > 0:
         lr_scheduler.step(start_epoch)
-
+    # import ipdb; ipdb.set_trace()
     if args.local_rank == 0:
         _logger.info('Scheduled epochs: {}'.format(num_epochs))
 
@@ -588,6 +588,7 @@ def main():
                     exit(1)
             dataset_eval = ImageDataset(eval_dir)
     else:
+        # import ipdb; ipdb.set_trace()
         dataset_train = create_dataset(
             args.dataset, root=args.data_dir + os.path.join('/train'), split=args.train_split, is_training=True,
             class_map=args.class_map,
@@ -867,8 +868,8 @@ def train_one_epoch(
 
             if args.mesa>0.0:
                 if epoch/args.epochs > args.mesa_start_ratio:
-                    with torch.no_grad():
-                        if model_ema is not None: # modify
+                    with torch.no_grad(): 
+                        if model_ema is not None:
                             ema_output = model_ema.module(input).data.detach()
                             kd = kdloss(output, ema_output)
                             loss += args.mesa * kd
@@ -983,8 +984,9 @@ def validate(model, loader, loss_fn, args, amp_autocast=suppress, log_suffix='')
             if reduce_factor > 1:
                 output = output.unfold(0, reduce_factor, reduce_factor).mean(dim=2)
                 target = target[0:target.size(0):reduce_factor]
-
+            # import ipdb; ipdb.set_trace()
             loss = loss_fn(output, target)
+            # import ipdb; ipdb.set_trace()
             acc1, acc5 = utils.accuracy(output, target, topk=(1, 5))
 
             if args.distributed:

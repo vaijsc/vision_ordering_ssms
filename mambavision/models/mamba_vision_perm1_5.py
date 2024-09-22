@@ -803,17 +803,6 @@ class MambaVision(nn.Module):
         layer_norm = nn.LayerNorm(x.size()[1:]).to(x.device)
         x = layer_norm(new_head)
         return x
-    
-    # def forward_features(self, x):
-    #     import ipdb; ipdb.set_trace()
-    #     # print('x_shape = ', x.shape)
-    #     x = self.patch_embed(x) # torch.Size([128, 3, 224, 224])
-    #     for level in self.levels:
-    #         x = level(x)
-    #     x = self.norm(x) # torch.Size([128, 640, 7, 7])
-    #     x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
-    #     x = torch.flatten(x, 1) # torch.Size([128, 640])
-    #     return x
 
     def forward(self, x):
         # breakpoint()

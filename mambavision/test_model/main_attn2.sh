@@ -1,17 +1,15 @@
 #!/bin/bash
-#SBATCH --job-name=mv_attn2
+#SBATCH --job-name=attn2_mv
 #SBATCH --error=/lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/mambavision/result/mambaV_attn2.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
-#SBATCH --nodelist=sdc2-hpc-dgx-a100-019
+#SBATCH --nodelist=sdc2-hpc-dgx-a100-015
 #SBATCH --mem-per-gpu=50G
 #SBATCH --cpus-per-gpu=40
 #SBATCH --partition=research
 #SBATCH --mail-type=all
 #SBATCH --mail-user=v.AnhND81@vinai.io
 
-#module purge
-#module load python/miniconda3/miniconda3
 eval "$(conda shell.bash hook)"
 #conda activate /lustre/scratch/client/vinai/users/anhnd81/envs/mambavision
 conda activate /lustre/scratch/client/vinai/users/phinh2/workspace/envs/mambav
@@ -29,12 +27,13 @@ echo $CUDA_VISIBLE_DEVICES
 DATA_PATH="/lustre/scratch/client/vinai/users/phinh2/workspace/dataset/imagenet"
 MODEL=mamba_vision_T
 BS=128
-EXP=Original
+EXP=Attn2
 LR=8e-4
 WD=0.05
 WR_LR=1e-6
 DR=0.38
 MESA=0.25
 RUN_FILE="/lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/mambavision/train_attn2.py"
-torchrun --master_port 12351 --nproc_per_node=1 $RUN_FILE --mesa ${MESA} --input-size 3 224 224 --crop-pct=0.875 \
---data_dir=$DATA_PATH --model $MODEL --amp --weight-decay ${WD} --drop-path ${DR} --batch-size $BS --tag $EXP --lr $LR --warmup-lr $WR_LR
+torchrun --master_port 12354 --nproc_per_node=1 $RUN_FILE --mesa ${MESA} --input-size 3 224 224 --crop-pct=0.875 \
+--data_dir=$DATA_PATH --model $MODEL --amp --weight-decay ${WD} --drop-path ${DR} --batch-size $BS --tag $EXP --lr $LR --warmup-lr $WR_LR # \
+# --resume /lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/output/train/Original/20240817-001048-mamba_vision_T-224/checkpoint-308.pth.tar
