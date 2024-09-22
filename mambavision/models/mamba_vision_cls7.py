@@ -644,30 +644,17 @@ class MambaVisionLayer_reorder(nn.Module):
             self.indices = (self.depth//2 if self.depth % 2 != 0 else self.depth//2 -1)
             self.blocks = nn.ModuleList()
             for i in range (depth):
-                if i >= self.indices + 1:
-                    level = Block(dim=dim * 2,
-                                    counter=i, 
-                                    transformer_blocks=transformer_blocks,
-                                    num_heads=num_heads,
-                                    mlp_ratio=mlp_ratio,
-                                    qkv_bias=qkv_bias,
-                                    qk_scale=qk_scale,
-                                    drop=drop,
-                                    attn_drop=attn_drop,
-                                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-                                    layer_scale=layer_scale)
-                else:
-                    level = Block(dim=dim,
-                                    counter=i, 
-                                    transformer_blocks=transformer_blocks,
-                                    num_heads=num_heads,
-                                    mlp_ratio=mlp_ratio,
-                                    qkv_bias=qkv_bias,
-                                    qk_scale=qk_scale,
-                                    drop=drop,
-                                    attn_drop=attn_drop,
-                                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-                                    layer_scale=layer_scale)
+                level = Block(dim=dim,
+                                counter=i, 
+                                transformer_blocks=transformer_blocks,
+                                num_heads=num_heads,
+                                mlp_ratio=mlp_ratio,
+                                qkv_bias=qkv_bias,
+                                qk_scale=qk_scale,
+                                drop=drop,
+                                attn_drop=attn_drop,
+                                drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                layer_scale=layer_scale)
                 self.blocks.append(level)
 
             # The first 4 blocks are MambaMixer, and the last 4 are Attention blocks
