@@ -699,7 +699,7 @@ class MambaVisionLayer_reorder(nn.Module):
 
         # Window reverse if transformer block and restore original shape
         if self.transformer_block:
-            x = window_reverse(x, self.window_size // 2, Hp // 2, Wp // 2)
+            x = window_reverse(x, self.window_size, Hp, Wp)
             if pad_r > 0 or pad_b > 0:
                 x = x[:, :, :H, :W].contiguous()
 
