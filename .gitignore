@@ -6,3 +6,5 @@ mambavision/result/
 logdir/
 # entries/logdir
 entries/slurm-*
+/home/ubuntu/workspace/mambavision_1/test/vision-transformer-vit-visualize-attention-map.ipynb
+test/
