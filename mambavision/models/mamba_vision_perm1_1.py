@@ -735,9 +735,9 @@ class MambaVision(nn.Module):
         cls_tokens = self.cls_token.expand(B, -1, -1)  # [B, 1, C]
         dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [B, N]
         rearranged_values = self.soft_sort(-1 * dot_prod)
-        
+        import ipdb; ipdb.set_trace()
         # Using einsum to obtain the rearranged output from rearranged_values
-        x_reordered = torch.einsum('bkl,bl->bk', rearranged_values, x)  # [B, N]
+        x_reordered = torch.einsum('bkl,blc->bkc', rearranged_values, x)  # [B, N]
         x_reordered = x_reordered.unsqueeze(-1).expand(-1, -1, C)  # [B, N, C]
         
         # Concatenating the cls_tokens with the reordered x
