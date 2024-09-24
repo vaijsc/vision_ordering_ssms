@@ -708,11 +708,10 @@ class MambaVision(nn.Module):
     def forward_cls(self, x):
         B, N, C = x.shape  # B = 128, N = 49, C = 448
         # import ipdb; ipdb.set_trace()
-        #import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
         cls_tokens = self.cls_token.expand(B, -1, -1)  # [B, 1, C]
         dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
         # Use torch.topk to get top-k values and indices per sample in the batch
-        import ipdb; ipdb.set_trace()
         _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
         rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
         x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
