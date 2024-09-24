@@ -30,7 +30,29 @@ from pathlib import Path
 from mamba_ssm import Mamba
 import warnings
 warnings.filterwarnings("ignore", message="Overwriting mamba_vision_", category=UserWarning)
+import torch
+from torch import Tensor
+class SoftSort(torch.nn.Module):
+    def __init__(self, tau=1.0, hard=False, pow=1.0):
+        super(SoftSort, self).__init__()
+        self.hard = hard
+        self.tau = tau
+        self.pow = pow
 
+    def forward(self, scores: Tensor):
+        """
+        scores: elements to be sorted. Typical shape: batch_size x n
+        """
+        scores = scores.unsqueeze(-1)
+        sorted = scores.sort(descending=True, dim=1)[0]
+        pairwise_diff = (scores.transpose(1, 2) - sorted).abs().pow(self.pow).neg() / self.tau
+        P_hat = pairwise_diff.softmax(-1)
+
+        if self.hard:
+            P = torch.zeros_like(P_hat, device=P_hat.device)
+            P.scatter_(-1, P_hat.topk(1, -1)[1], value=1)
+            P_hat = (P - P_hat).detach() + P_hat
+        return P_hat
 
 def _cfg(url='', **kwargs):
     return {'url': url,
@@ -713,10 +735,17 @@ class MambaVision(nn.Module):
         dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
         # Use torch.topk to get top-k values and indices per sample in the batch
         import ipdb; ipdb.set_trace()
-        _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
-        rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
-        x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
-        x = torch.cat((cls_tokens, x_reordered), dim=1)  # [128, 50, 448]
+        # _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
+        soft_sort = SoftSort(tau=1.0, hard=True)
+        rearranged_values = soft_sort(-1 * dot_prod)
+        # Using einsum to obtain the rearranged output from rearranged_values
+        rearrange = torch.einsum('bkl,bl->bk', rearranged_values, dot_prod)  # [B, N]
+
+        # Gathering the input x based on the rearrangement
+        x_reordered = torch.gather(x, 1, rearrange.unsqueeze(-1).expand(-1, -1, C).long())  # [B, N, C]
+
+        # Concatenating the cls_tokens with the reordered x
+        x = torch.cat((cls_tokens, x_reordered), dim=1)  # [B, N+1, C]
         # import ipdb; ipdb.set_trace()
         return x
     
