@@ -658,7 +658,7 @@ class MambaVision(nn.Module):
         self.num_stages = len(depths)
         self.patch_embed = PatchEmbed(in_chans=in_chans, in_dim=in_dim, dim=dim)
         self.drop_path_rate = drop_path_rate
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim))
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim * 2**(len(depths) - 1)))
         dpr = [x.item() for x in torch.linspace(0, self.drop_path_rate, sum(depths))]
         self.levels = nn.ModuleList()
         for i in range(len(depths)):
