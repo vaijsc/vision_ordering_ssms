@@ -737,8 +737,9 @@ class MambaVision(nn.Module):
         dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
         rearranged_values = self.soft_sort(-1 * dot_prod)
         # Using einsum to obtain the rearranged output from rearranged_values
-        rearrange = torch.einsum('bkl,bl->bk', rearranged_values, dot_prod)  # [B, N]
-
+        rearrange = torch.einsum('bkl,bl->bk', rearranged_values, x)  # [B, N]
+        # rearrange = rearrange.long()
+        
         # Gathering the input x based on the rearrangement
         x_reordered = torch.gather(x, 1, rearrange.unsqueeze(-1).expand(-1, -1, C).long())  # [B, N, C]
 
