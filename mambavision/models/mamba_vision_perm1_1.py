@@ -730,22 +730,19 @@ class MambaVision(nn.Module):
         return {'rpb'}
 
     def forward_cls(self, x):
-        B, N, C = x.shape  # B = 128, N = 49, C = 448
-        # import ipdb; ipdb.set_trace()
+        B, N, C = x.shape  # B = batch size, N = number of tokens, C = number of features
        
         cls_tokens = self.cls_token.expand(B, -1, -1)  # [B, 1, C]
-        dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
+        dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [B, N]
         rearranged_values = self.soft_sort(-1 * dot_prod)
-        # Using einsum to obtain the rearranged output from rearranged_values
-        rearrange = torch.einsum('bkl,bl->bk', rearranged_values, x)  # [B, N]
-        # rearrange = rearrange.long()
         
-        # Gathering the input x based on the rearrangement
-        x_reordered = torch.gather(x, 1, rearrange.unsqueeze(-1).expand(-1, -1, C).long())  # [B, N, C]
-
+        # Using einsum to obtain the rearranged output from rearranged_values
+        x_reordered = torch.einsum('bkl,bl->bk', rearranged_values, x)  # [B, N]
+        x_reordered = x_reordered.unsqueeze(-1).expand(-1, -1, C)  # [B, N, C]
+        
         # Concatenating the cls_tokens with the reordered x
         x = torch.cat((cls_tokens, x_reordered), dim=1)  # [B, N+1, C]
-        # import ipdb; ipdb.set_trace()
+        
         return x
     
     def forward_features(self, x):
