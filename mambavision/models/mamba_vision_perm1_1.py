@@ -707,6 +707,8 @@ class MambaVision(nn.Module):
         self.head = nn.Linear(num_features, num_classes) if num_classes > 0 else nn.Identity()
         self.apply(self._init_weights)
         self.embed_dims = dim * 2**(len(depths) - 1)
+        # Initialize SoftSort here
+        self.soft_sort = SoftSort(tau=1.0, hard=True)
         
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -733,11 +735,7 @@ class MambaVision(nn.Module):
        
         cls_tokens = self.cls_token.expand(B, -1, -1)  # [B, 1, C]
         dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
-        # Use torch.topk to get top-k values and indices per sample in the batch
-        import ipdb; ipdb.set_trace()
-        # _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
-        soft_sort = SoftSort(tau=1.0, hard=True)
-        rearranged_values = soft_sort(-1 * dot_prod)
+        rearranged_values = self.soft_sort(-1 * dot_prod)
         # Using einsum to obtain the rearranged output from rearranged_values
         rearrange = torch.einsum('bkl,bl->bk', rearranged_values, dot_prod)  # [B, N]
 
