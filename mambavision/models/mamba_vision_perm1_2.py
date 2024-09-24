@@ -658,6 +658,7 @@ class MambaVision(nn.Module):
         self.num_stages = len(depths)
         self.patch_embed = PatchEmbed(in_chans=in_chans, in_dim=in_dim, dim=dim)
         self.drop_path_rate = drop_path_rate
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim))
         dpr = [x.item() for x in torch.linspace(0, self.drop_path_rate, sum(depths))]
         self.levels = nn.ModuleList()
         for i in range(len(depths)):
@@ -708,13 +709,8 @@ class MambaVision(nn.Module):
         B, N, C = x.shape  # B = 128, N = 49, C = 448
         # import ipdb; ipdb.set_trace()
         #import ipdb; ipdb.set_trace()
-        cls_tokens = x.mean(dim=1, keepdim=True)  # [128, 1, 448]
-        # dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
-        # Use torch.topk to get top-k values and indices per sample in the batch
-        # import ipdb; ipdb.set_trace()
-        # _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
-        # rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
-        # x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
+        # cls_tokens = x.mean(dim=1, keepdim=True)  # [128, 1, 448]
+        cls_tokens = self.cls_token.expand(B, -1, -1)  # [B, 1, C]
         x = torch.cat((cls_tokens, x), dim=1)  # [128, 50, 448]
         # import ipdb; ipdb.set_trace()
         return x
