@@ -709,22 +709,15 @@ class MambaVisionLayer_reorder(nn.Module):
             else:
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size)
+        learn_key = self.learnable_keys.expand(B, -1, -1) # [B, 1, C], x [B, N, C]
         # Initialize variable to store the permutation matrix
         # perm_matrix = None
         for idx, blk in enumerate(self.blocks):
             x = blk(x)
-            if idx == 1:
-                learn_key = self.learnable_keys.expand(B, -1, -1) # [B, 1, C], x [B, N, C]
+            if idx == 0:
                 dot_prod = torch.matmul(x, learn_key.transpose(1,2)).squeeze(2) # [B, N]
-                # import ipdb; ipdb.set_trace()
                 perm_matrix = self.soft_sort(dot_prod) # [B, N, N]
                 x = torch.einsum('blk, bkn -> bln', perm_matrix, x)        
-                    
-            # if idx == 3 and perm_matrix is not None:
-            #     # Apply reverse permutation to restore the original order
-            #     perm_matrix_inv = perm_matrix.transpose(1, 2)  # [B, N, N] inverse of the permutation matrix
-            #     x = torch.einsum('blk, bkn -> bln', perm_matrix_inv, x)
-            
         if self.transformer_block:
             x = window_reverse(x, self.window_size, Hp, Wp)
             if pad_r > 0 or pad_b > 0:
@@ -781,7 +774,7 @@ class MambaVision(nn.Module):
         self.levels = nn.ModuleList()
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
-            if i == 2:
+            if i >= 2:
                 level = MambaVisionLayer_reorder(dim=int(dim * 2 ** i),
                                         depth=depths[i],
                                         num_heads=num_heads[i],
