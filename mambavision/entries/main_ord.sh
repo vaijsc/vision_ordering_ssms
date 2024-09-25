@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=ord
-#SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_ord.txt
+#SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_ords.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=4
 #SBATCH --nodelist=sdc2-hpc-dgx-a100-019
