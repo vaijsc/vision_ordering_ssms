@@ -738,10 +738,6 @@ def mamba_vision_T(pretrained=False, **kwargs):
                         resolution=224,
                         drop_path_rate=0.2,
                         **kwargs)
-    import ipdb; ipdb.set_trace()
-    # print(model.kwargs)
-    # print(model.drop_path_rate)
-    # print('hello')
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
