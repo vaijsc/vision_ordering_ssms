@@ -30,6 +30,29 @@ from pathlib import Path
 from mamba_ssm import Mamba
 import warnings
 warnings.filterwarnings("ignore", message="Overwriting mamba_vision_", category=UserWarning)
+from torch import Tensor
+
+class SoftSort(torch.nn.Module):
+    def __init__(self, tau=1.0, hard=False, pow=1.0):
+        super(SoftSort, self).__init__()
+        self.hard = hard
+        self.tau = tau
+        self.pow = pow
+
+    def forward(self, scores: Tensor):
+        """
+        scores: elements to be sorted. Typical shape: batch_size x n
+        """
+        scores = scores.unsqueeze(-1)
+        sorted = scores.sort(descending=True, dim=1)[0]
+        pairwise_diff = (scores.transpose(1, 2) - sorted).abs().pow(self.pow).neg() / self.tau
+        P_hat = pairwise_diff.softmax(-1)
+
+        if self.hard:
+            P = torch.zeros_like(P_hat, device=P_hat.device)
+            P.scatter_(-1, P_hat.topk(1, -1)[1], value=1)
+            P_hat = (P - P_hat).detach() + P_hat
+        return P_hat
 
 
 def _cfg(url='', **kwargs):
@@ -735,7 +758,9 @@ class MambaVision(nn.Module):
         
         post_layers = ['ca']
         self.embed_dims = dim * 2**(len(depths) - 1)
-        self.keys = nn.Parameter(torch.randn(window_size[-1]**2, self.embed_dims))  # Learnable keys
+        self.keys = nn.Parameter(torch.randn(1, 1, self.embed_dims))
+        # self.keys = nn.Parameter(torch.randn(window_size[-1]**2, self.embed_dims))  # Learnable keys
+        self.soft_sort = SoftSort(hard=True)
         self.post_network = nn.ModuleList([
             ClassBlock(
                 dim = self.embed_dims, 
@@ -764,23 +789,11 @@ class MambaVision(nn.Module):
 
     def forward_cls(self, x):
         B, N, C = x.shape  # B = 128, N = 49, C = 448
-        # import ipdb; ipdb.set_trace()
-        # Compute self-attention
-        K = self.keys.unsqueeze(0).expand(B, -1, -1)  # Expand keys for batch size
-        attention_scores = torch.matmul(x, K.transpose(-1, -2)) / math.sqrt(C)  # [B, N, num_keys]
-        attention_scores = torch.nn.functional.softmax(attention_scores, dim=-1)  # [B, N, num_keys]
-        attention_output = torch.matmul(attention_scores, x)  # [B, N, C]
-        x = attention_output
-        #import ipdb; ipdb.set_trace()
-        cls_tokens = x.mean(dim=1, keepdim=True)  # [128, 1, 448]
-        dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [128, 49, 1]
-        # Use torch.topk to get top-k values and indices per sample in the batch
-        # Here, k = 49 to get the full rearrangement, but you can choose a different k if needed
-        # import ipdb; ipdb.set_trace()
-        _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
-        rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
-        x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
-        x = torch.cat((cls_tokens, x_reordered), dim=1)  # [128, 50, 448]
+        cls_tokens = self.keys.expand(B, -1, -1) 
+        # dot_prod = torch.matmul(x, cls_tokens.transpose(1, 2)).squeeze(2)  # [128, 49]
+        # perm_matrix = self.soft_sort(-dot_prod) # [B, N, N]
+        # x = torch.einsum('blk, bkn -> bln', perm_matrix, x)
+        x = torch.cat((cls_tokens, x), dim=1)  # [128, 50, 448]
         # import ipdb; ipdb.set_trace()
         for block in self.post_network:
             x = block(x)
