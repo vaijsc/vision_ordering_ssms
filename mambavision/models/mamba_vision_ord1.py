@@ -27,7 +27,29 @@ from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
 from einops import rearrange, repeat
 from .registry import register_pip_model
 from pathlib import Path
+from torch import Tensor
 
+class SoftSort(torch.nn.Module):
+    def __init__(self, tau=1.0, hard=False, pow=1.0):
+        super(SoftSort, self).__init__()
+        self.hard = hard
+        self.tau = tau
+        self.pow = pow
+
+    def forward(self, scores: Tensor):
+        """
+        scores: elements to be sorted. Typical shape: batch_size x n
+        """
+        scores = scores.unsqueeze(-1)
+        sorted = scores.sort(descending=True, dim=1)[0]
+        pairwise_diff = (scores.transpose(1, 2) - sorted).abs().pow(self.pow).neg() / self.tau
+        P_hat = pairwise_diff.softmax(-1)
+
+        if self.hard:
+            P = torch.zeros_like(P_hat, device=P_hat.device)
+            P.scatter_(-1, P_hat.topk(1, -1)[1], value=1)
+            P_hat = (P - P_hat).detach() + P_hat
+        return P_hat
 
 def _cfg(url='', **kwargs):
     return {'url': url,
@@ -603,6 +625,109 @@ class MambaVisionLayer(nn.Module):
         return self.downsample(x)
 
 
+class MambaVisionLayer_reorder(nn.Module):
+    """
+    MambaVision layer"
+    """
+
+    def __init__(self,
+                 dim,
+                 depth,
+                 num_heads,
+                 window_size,
+                 conv=False,
+                 downsample=True,
+                 mlp_ratio=4.,
+                 qkv_bias=True,
+                 qk_scale=None,
+                 drop=0.,
+                 attn_drop=0.,
+                 drop_path=0.,
+                 layer_scale=None,
+                 layer_scale_conv=None,
+                 transformer_blocks = [],
+    ):
+        """
+        Args:
+            dim: feature size dimension.
+            depth: number of layers in each stage.
+            window_size: window size in each stage.
+            conv: bool argument for conv stage flag.
+            downsample: bool argument for down-sampling.
+            mlp_ratio: MLP ratio.
+            num_heads: number of heads in each stage.
+            qkv_bias: bool argument for query, key, value learnable bias.
+            qk_scale: bool argument to scaling query, key.
+            drop: dropout rate.
+            attn_drop: attention dropout rate.
+            drop_path: drop path rate.
+            norm_layer: normalization layer.
+            layer_scale: layer scaling coefficient.
+            layer_scale_conv: conv layer scaling coefficient.
+            transformer_blocks: list of transformer blocks.
+        """
+
+        super().__init__()
+        self.conv = conv
+        self.transformer_block = False
+        self.learnable_keys = nn.Parameter(torch.randn(1, 1, dim)) # ensure dimension = 320
+        if conv:
+            self.blocks = nn.ModuleList([ConvBlock(dim=dim,
+                                                   drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                                   layer_scale=layer_scale_conv)
+                                                   for i in range(depth)])
+            self.transformer_block = False
+        else:
+            self.blocks = nn.ModuleList([Block(dim=dim,
+                                               counter=i, 
+                                               transformer_blocks=transformer_blocks,
+                                               num_heads=num_heads,
+                                               mlp_ratio=mlp_ratio,
+                                               qkv_bias=qkv_bias,
+                                               qk_scale=qk_scale,
+                                               drop=drop,
+                                               attn_drop=attn_drop,
+                                               drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                               layer_scale=layer_scale)
+                                               for i in range(depth)])
+            self.transformer_block = True
+
+        self.downsample = None if not downsample else Downsample(dim=dim)
+        self.do_gt = False
+        self.window_size = window_size
+        self.soft_sort = SoftSort(hard=True)
+
+    def forward(self, x):
+        B, _, H, W = x.shape
+
+        if self.transformer_block:
+            pad_r = (self.window_size - W % self.window_size) % self.window_size
+            pad_b = (self.window_size - H % self.window_size) % self.window_size
+            if pad_r > 0 or pad_b > 0:
+                x = torch.nn.functional.pad(x, (0,pad_r,0,pad_b))
+                _, _, Hp, Wp = x.shape
+            else:
+                Hp, Wp = H, W
+            x = window_partition(x, self.window_size)
+
+        for idx, blk in enumerate(self.blocks):
+            x = blk(x)
+            if idx == 2:
+                learn_key = self.learnable_keys.expand(B, -1, -1) # [B, 1, C], x [B, N, C]
+                dot_prod = torch.matmul(x, learn_key.transpose(1,2)).squeeze(2) # [B, N]
+                # import ipdb; ipdb.set_trace()
+                perm_matrix = self.soft_sort(-1 * dot_prod) # [B, N, N]
+                x = torch.einsum('blk, bkn -> bln', perm_matrix, x)                
+
+            
+        if self.transformer_block:
+            x = window_reverse(x, self.window_size, Hp, Wp)
+            if pad_r > 0 or pad_b > 0:
+                x = x[:, :, :H, :W].contiguous()
+        if self.downsample is None:
+            return x
+        return self.downsample(x)
+
 class MambaVision(nn.Module):
     """
     MambaVision,
@@ -651,22 +776,40 @@ class MambaVision(nn.Module):
         self.levels = nn.ModuleList()
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
-            level = MambaVisionLayer(dim=int(dim * 2 ** i),
-                                     depth=depths[i],
-                                     num_heads=num_heads[i],
-                                     window_size=window_size[i],
-                                     mlp_ratio=mlp_ratio,
-                                     qkv_bias=qkv_bias,
-                                     qk_scale=qk_scale,
-                                     conv=conv,
-                                     drop=drop_rate,
-                                     attn_drop=attn_drop_rate,
-                                     drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
-                                     downsample=(i < 3),
-                                     layer_scale=layer_scale,
-                                     layer_scale_conv=layer_scale_conv,
-                                     transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
-                                     )
+            if i == 2:
+                level = MambaVisionLayer_reorder(dim=int(dim * 2 ** i),
+                                        depth=depths[i],
+                                        num_heads=num_heads[i],
+                                        window_size=window_size[i],
+                                        mlp_ratio=mlp_ratio,
+                                        qkv_bias=qkv_bias,
+                                        qk_scale=qk_scale,
+                                        conv=conv,
+                                        drop=drop_rate,
+                                        attn_drop=attn_drop_rate,
+                                        drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
+                                        downsample=(i < 3),
+                                        layer_scale=layer_scale,
+                                        layer_scale_conv=layer_scale_conv,
+                                        transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
+                                        )
+            else:
+                level = MambaVisionLayer(dim=int(dim * 2 ** i),
+                                        depth=depths[i],
+                                        num_heads=num_heads[i],
+                                        window_size=window_size[i],
+                                        mlp_ratio=mlp_ratio,
+                                        qkv_bias=qkv_bias,
+                                        qk_scale=qk_scale,
+                                        conv=conv,
+                                        drop=drop_rate,
+                                        attn_drop=attn_drop_rate,
+                                        drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
+                                        downsample=(i < 3),
+                                        layer_scale=layer_scale,
+                                        layer_scale_conv=layer_scale_conv,
+                                        transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
+                                        )
             self.levels.append(level)
         self.norm = nn.BatchNorm2d(num_features)
         self.avgpool = nn.AdaptiveAvgPool2d(1)
@@ -698,6 +841,7 @@ class MambaVision(nn.Module):
             x = level(x)
         x = self.norm(x)
         x = self.avgpool(x)
+        # import ipdb; ipdb.set_trace()
         x = torch.flatten(x, 1)
         return x
 
@@ -728,6 +872,7 @@ def mamba_vision_T(pretrained=False, **kwargs):
     drop_path_rate = kwargs.pop("drop_path_rate", 0.2)
     pretrained_cfg = resolve_pretrained_cfg('mamba_vision_T').to_dict()
     update_args(pretrained_cfg, kwargs, kwargs_filter=None)
+    
     model = MambaVision(depths=[1, 3, 8, 4],
                         num_heads=[2, 4, 8, 16],
                         window_size=[8, 8, 14, 7],
