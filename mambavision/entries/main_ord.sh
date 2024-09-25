@@ -24,7 +24,7 @@ echo $CUDA_VISIBLE_DEVICES
 #DATA_PATH="/home/ubuntu/workspace/dataset/imagenet"
 DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet"
 MODEL=mamba_vision_T
-BS=128
+BS=1
 # EXP=ordering
 EXP=Test
 LR=8e-4 # original 8e-4
