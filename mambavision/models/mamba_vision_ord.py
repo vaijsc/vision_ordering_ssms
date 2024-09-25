@@ -715,7 +715,7 @@ class MambaVisionLayer_reorder(nn.Module):
             if idx == 1:
                 learn_key = self.learnable_keys.expand(B, -1, -1) # [B, 1, C], x [B, N, C]
                 dot_prod = torch.matmul(x, learn_key.transpose(1,2)).squeeze(2) # [B, N]
-                import ipdb; ipdb.set_trace()
+                # import ipdb; ipdb.set_trace()
                 perm_matrix = self.soft_sort(-1 * dot_prod) # [B, N, N]
                 x = torch.einsum('blk, bkn -> bln', perm_matrix, x)                
 
