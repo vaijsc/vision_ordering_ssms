@@ -716,7 +716,7 @@ class MambaVisionLayer_reorder(nn.Module):
             x = blk(x)
             if idx == 0:
                 dot_prod = torch.matmul(x, learn_key.transpose(1,2)).squeeze(2) # [B, N]
-                perm_matrix = self.soft_sort(dot_prod) # [B, N, N]
+                perm_matrix = self.soft_sort(-1 * dot_prod) # [B, N, N]
                 x = torch.einsum('blk, bkn -> bln', perm_matrix, x)        
         if self.transformer_block:
             x = window_reverse(x, self.window_size, Hp, Wp)
