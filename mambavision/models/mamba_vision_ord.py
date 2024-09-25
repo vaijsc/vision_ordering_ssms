@@ -670,7 +670,7 @@ class MambaVisionLayer_reorder(nn.Module):
         super().__init__()
         self.conv = conv
         self.transformer_block = False
-        self.learnable_keys = nn.Parameter(torch.randn(1, 1, dim * 2**(2))) # ensure dimension = 320
+        self.learnable_keys = nn.Parameter(torch.randn(1, 1, dim)) # ensure dimension = 320
         if conv:
             self.blocks = nn.ModuleList([ConvBlock(dim=dim,
                                                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
