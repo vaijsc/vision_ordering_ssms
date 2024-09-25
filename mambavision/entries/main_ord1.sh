@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=ord1
-#SBATCH --error=/lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/mambavision/result/mambaV_ord1.txt
+#SBATCH --error=/lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/mambavision/result/mambaV_ord3.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=4
 #SBATCH --nodelist=sdc2-hpc-dgx-a100-020
