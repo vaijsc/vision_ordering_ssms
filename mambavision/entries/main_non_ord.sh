@@ -26,7 +26,7 @@ echo $CUDA_VISIBLE_DEVICES
 #DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet"
 DATA_PATH="/lustre/scratch/client/vinai/users/phinh2/workspace/dataset/imagenet"
 MODEL=mamba_vision_T
-BS=2
+BS=128
 # EXP=non_ord
 EXP=Test
 LR=8e-4
