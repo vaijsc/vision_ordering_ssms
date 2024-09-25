@@ -713,6 +713,7 @@ class MambaVisionLayer_reorder(nn.Module):
         # Initialize variable to store the permutation matrix
         # perm_matrix = None
         for idx, blk in enumerate(self.blocks):
+            import ipdb; ipdb.set_trace()
             x = blk(x)
             if idx == 0:
                 dot_prod = torch.matmul(x, learn_key.transpose(1,2)).squeeze(2) # [B, N]
@@ -835,7 +836,7 @@ class MambaVision(nn.Module):
 
     def forward_features(self, x):
         x = self.patch_embed(x)
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         for level in self.levels:
             x = level(x)
         x = self.norm(x)
