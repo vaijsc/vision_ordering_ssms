@@ -713,12 +713,12 @@ class MambaVisionLayer_reorder(nn.Module):
         # Initialize variable to store the permutation matrix
         # perm_matrix = None
         for idx, blk in enumerate(self.blocks):
-            import ipdb; ipdb.set_trace()
-            x = blk(x)
+            # import ipdb; ipdb.set_trace()
             if idx == 0:
                 dot_prod = torch.matmul(x, learn_key.transpose(1,2)).squeeze(2) # [B, N]
                 perm_matrix = self.soft_sort(-1 * dot_prod) # [B, N, N]
-                x = torch.einsum('blk,bkd->bld', perm_matrix, x)        
+                x = torch.einsum('blk,bkd->bld', perm_matrix, x)       
+            x = blk(x) 
         if self.transformer_block:
             x = window_reverse(x, self.window_size, Hp, Wp)
             if pad_r > 0 or pad_b > 0:
