@@ -711,13 +711,14 @@ class MambaVisionLayer_reorder(nn.Module):
             x = window_partition(x, self.window_size)
 
         for idx, blk in enumerate(self.blocks):
-            # import ipdb; ipdb.set_trace()
             x = blk(x)
             if idx == 1:
                 learn_key = self.learnable_keys.expand(B, -1, -1) # [B, 1, C], x [B, N, C]
                 dot_prod = torch.matmul(x, learn_key.transpose(1,2)).squeeze(2) # [B, N]
+                import ipdb; ipdb.set_trace()
                 perm_matrix = self.soft_sort(-1 * dot_prod) # [B, N, N]
                 x = torch.einsum('blk, bkn -> bln', perm_matrix, x)                
+
             
         if self.transformer_block:
             x = window_reverse(x, self.window_size, Hp, Wp)
@@ -840,7 +841,7 @@ class MambaVision(nn.Module):
             x = level(x)
         x = self.norm(x)
         x = self.avgpool(x)
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         x = torch.flatten(x, 1)
         return x
 
