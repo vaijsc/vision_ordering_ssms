@@ -39,7 +39,7 @@ from scheduler.scheduler_factory import create_scheduler
 import shutil
 from utils.datasets import imagenet_lmdb_dataset
 from tensorboard import TensorboardLogger
-from models.mamba_vision_perm1_2 import *
+from models.mamba_vision import *
 
 try:
     from apex import amp
@@ -543,12 +543,11 @@ def main():
             # Apex DDP preferred unless native amp is activated
             if args.local_rank == 0:
                 _logger.info("Using NVIDIA APEX DistributedDataParallel.")
-            model = ApexDDP(model, delay_allreduce=True) # change 
+            model = ApexDDP(model, delay_allreduce=True)
         else:
             if args.local_rank == 0:
                 _logger.info("Using native Torch DistributedDataParallel.")
-            model = NativeDDP(model, device_ids=[args.local_rank], broadcast_buffers=not args.no_ddp_bb) # change 
-            # , find_unused_parameters=True
+            model = NativeDDP(model, device_ids=[args.local_rank], broadcast_buffers=not args.no_ddp_bb)
         # NOTE: EMA model does not need to be wrapped by DDP
 
     # setup learning rate schedule and starting epoch
@@ -894,9 +893,7 @@ def train_one_epoch(
                 utils.dispatch_clip_grad(
                     model_parameters(model, exclude_head='agc' in args.clip_mode),
                     value=args.clip_grad, mode=args.clip_mode)
-            # for name, params in model.named_parameters():
-            #     if params.grad is None:
-            #         print(name)
+
             optimizer.step()
 
         if model_ema is not None:
