@@ -728,6 +728,7 @@ def mamba_vision_T(pretrained=False, **kwargs):
     drop_path_rate = kwargs.pop("drop_path_rate", 0.2)
     pretrained_cfg = resolve_pretrained_cfg('mamba_vision_T').to_dict()
     update_args(pretrained_cfg, kwargs, kwargs_filter=None)
+    
     model = MambaVision(depths=[1, 3, 8, 4],
                         num_heads=[2, 4, 8, 16],
                         window_size=[8, 8, 14, 7],
@@ -738,9 +739,9 @@ def mamba_vision_T(pretrained=False, **kwargs):
                         drop_path_rate=0.2,
                         **kwargs)
     import ipdb; ipdb.set_trace()
-    print(model.kwargs)
-    print(model.drop_path_rate)
-    print('hello')
+    # print(model.kwargs)
+    # print(model.drop_path_rate)
+    # print('hello')
     model.pretrained_cfg = pretrained_cfg
     model.default_cfg = model.pretrained_cfg
     if pretrained:
