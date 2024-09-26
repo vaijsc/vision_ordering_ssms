@@ -717,6 +717,7 @@ class MambaVisionLayer_reorder(nn.Module):
                     block = ConvBlock_reorder(dim=dim,
                                     drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
                                     layer_scale=layer_scale_conv)
+                self.blocks.append(block)
             self.transformer_block = False
         else:
             self.blocks = nn.ModuleList([Block(dim=dim,
