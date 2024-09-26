@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name=ord
-#SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_ord2_1.txt
+#SBATCH --job-name=ord2_2
+#SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_ord2_2.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=4
 #SBATCH --nodelist=sdc2-hpc-dgx-a100-019
@@ -25,7 +25,7 @@ echo $CUDA_VISIBLE_DEVICES
 DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet"
 MODEL=mamba_vision_T
 BS=128
-EXP=ordering2_1
+EXP=ordering2_2
 # EXP=Test
 LR=8e-4 # original 8e-4
 WD=0.05

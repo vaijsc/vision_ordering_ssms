@@ -670,7 +670,7 @@ class MambaVisionLayer_reorder(nn.Module):
         super().__init__()
         self.conv = conv
         self.transformer_block = False
-        self.learnable_keys = nn.Parameter(torch.randn(1, 1, dim)) # ensure dimension = 320
+        # self.learnable_keys = nn.Parameter(torch.randn(1, 1, dim)) # ensure dimension = 320
         if conv:
             self.blocks = nn.ModuleList([ConvBlock(dim=dim,
                                                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
@@ -709,12 +709,14 @@ class MambaVisionLayer_reorder(nn.Module):
             else:
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size)
-        learn_key = self.learnable_keys.expand(B, -1, -1) # [B, 1, C], x [B, N, C]
+            
+        # learn_key = self.learnable_keys.expand(B, -1, -1) # [B, 1, C], x [B, N, C]
         # Initialize variable to store the permutation matrix
         # perm_matrix = None
         for idx, blk in enumerate(self.blocks):
             # import ipdb; ipdb.set_trace()
-            if idx == 0:           
+            if idx == 0:
+                learn_key = x.mean(dim=1) # [B, 1, C]           
                 dot_prod = torch.matmul(x, learn_key.transpose(1,2)).squeeze(2) # [B, N]
                 perm_matrix = self.soft_sort(-1 * dot_prod) # [B, N, N]
                 x = torch.einsum('blk,bkd->bld', perm_matrix, x)       
