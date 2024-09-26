@@ -318,6 +318,43 @@ class ConvBlock(nn.Module):
         x = input + self.drop_path(x)
         return x
 
+class ConvBlock_reorder(nn.Module):
+
+    def __init__(self, dim,
+                 drop_path=0.,
+                 layer_scale=None,
+                 kernel_size=3):
+        super().__init__()
+
+        self.conv1 = nn.Conv2d(dim, dim, kernel_size=kernel_size, stride=1, padding=1)
+        self.norm1 = nn.BatchNorm2d(dim, eps=1e-5)
+        self.act1 = nn.GELU(approximate= 'tanh')
+        self.conv2 = nn.Conv2d(dim, dim, kernel_size=kernel_size, stride=1, padding=1)
+        self.norm2 = nn.BatchNorm2d(dim, eps=1e-5)
+        self.layer_scale = layer_scale
+        if layer_scale is not None and type(layer_scale) in [int, float]:
+            self.gamma = nn.Parameter(layer_scale * torch.ones(dim))
+            self.layer_scale = True
+        else:
+            self.layer_scale = False
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+    def forward(self, x):
+        input = x
+        x = self.conv1(x)
+        x = self.norm1(x)
+        x = self.act1(x)
+        x = self.conv2(x)
+        x = self.norm2(x)
+        if self.layer_scale:
+            x = x * self.gamma.view(1, -1, 1, 1)
+        x = input + self.drop_path(x)
+        learn_key = x.mean(dim=1).view(x.shape[0], 1, x.shape[2]) # [B, 1, C]           
+        dot_prod = torch.matmul(x, learn_key.transpose(1,2)).squeeze(2) # [B, N]
+        _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
+        rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
+        x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
+        return x_reordered
 
 class MambaVisionMixer(nn.Module):
     def __init__(
@@ -624,7 +661,6 @@ class MambaVisionLayer(nn.Module):
             return x
         return self.downsample(x)
 
-
 class MambaVisionLayer_reorder(nn.Module):
     """
     MambaVision layer"
@@ -670,12 +706,17 @@ class MambaVisionLayer_reorder(nn.Module):
         super().__init__()
         self.conv = conv
         self.transformer_block = False
-        # self.learnable_keys = nn.Parameter(torch.randn(1, 1, dim)) # ensure dimension = 320
         if conv:
-            self.blocks = nn.ModuleList([ConvBlock(dim=dim,
-                                                   drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-                                                   layer_scale=layer_scale_conv)
-                                                   for i in range(depth)])
+            self.blocks = nn.ModuleList()
+            for i in range (depth):
+                if i < depth -1:
+                    block = ConvBlock(dim=dim,
+                                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                    layer_scale=layer_scale_conv)
+                else:                
+                    block = ConvBlock_reorder(dim=dim,
+                                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                    layer_scale=layer_scale_conv)
             self.transformer_block = False
         else:
             self.blocks = nn.ModuleList([Block(dim=dim,
@@ -695,10 +736,9 @@ class MambaVisionLayer_reorder(nn.Module):
         self.downsample = None if not downsample else Downsample(dim=dim)
         self.do_gt = False
         self.window_size = window_size
-        self.soft_sort = SoftSort(hard=True)
 
     def forward(self, x):
-        B, C, H, W = x.shape
+        _, _, H, W = x.shape
 
         if self.transformer_block:
             pad_r = (self.window_size - W % self.window_size) % self.window_size
@@ -709,23 +749,9 @@ class MambaVisionLayer_reorder(nn.Module):
             else:
                 Hp, Wp = H, W
             x = window_partition(x, self.window_size)
-            
-        # learn_key = self.learnable_keys.expand(B, -1, -1) # [B, 1, C], x [B, N, C]
-        # Initialize variable to store the permutation matrix
-        # perm_matrix = None
-        for idx, blk in enumerate(self.blocks):
-            # import ipdb; ipdb.set_trace()
-            if idx == 0:
-                # import ipdb; ipdb.set_trace()
-                learn_key = x.mean(dim=1).view(x.shape[0], 1, x.shape[2]) # [B, 1, C]           
-                dot_prod = torch.matmul(x, learn_key.transpose(1,2)).squeeze(2) # [B, N]
-                _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
-                rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
-                x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
-                # perm_matrix = self.soft_sort(-1 * dot_prod) # [B, N, N]
-                # x = torch.einsum('blk,bkd->bld', perm_matrix, x)       
-                x = x_reordered
-            x = blk(x) 
+
+        for _, blk in enumerate(self.blocks):
+            x = blk(x)
         if self.transformer_block:
             x = window_reverse(x, self.window_size, Hp, Wp)
             if pad_r > 0 or pad_b > 0:
@@ -782,7 +808,7 @@ class MambaVision(nn.Module):
         self.levels = nn.ModuleList()
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
-            if i >= 2:
+            if i==1:
                 level = MambaVisionLayer_reorder(dim=int(dim * 2 ** i),
                                         depth=depths[i],
                                         num_heads=num_heads[i],
@@ -798,7 +824,7 @@ class MambaVision(nn.Module):
                                         layer_scale=layer_scale,
                                         layer_scale_conv=layer_scale_conv,
                                         transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
-                                        )
+                                        )                
             else:
                 level = MambaVisionLayer(dim=int(dim * 2 ** i),
                                         depth=depths[i],
@@ -843,7 +869,7 @@ class MambaVision(nn.Module):
 
     def forward_features(self, x):
         x = self.patch_embed(x)
-        # import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
         for level in self.levels:
             x = level(x)
         x = self.norm(x)
