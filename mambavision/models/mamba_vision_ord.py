@@ -714,7 +714,7 @@ class MambaVisionLayer_reorder(nn.Module):
         # perm_matrix = None
         for idx, blk in enumerate(self.blocks):
             # import ipdb; ipdb.set_trace()
-            if idx == 1:            
+            if idx == 0:           
                 dot_prod = torch.matmul(x, learn_key.transpose(1,2)).squeeze(2) # [B, N]
                 perm_matrix = self.soft_sort(-1 * dot_prod) # [B, N, N]
                 x = torch.einsum('blk,bkd->bld', perm_matrix, x)       
