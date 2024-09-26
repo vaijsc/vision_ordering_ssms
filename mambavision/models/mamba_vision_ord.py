@@ -720,8 +720,8 @@ class MambaVisionLayer_reorder(nn.Module):
                 learn_key = self.learnable_keys.expand(B, -1, -1) # [B, 1, C], x [B, N, C]
                 # learn_key = x.mean(dim=1).view(x.shape[0], 1, x.shape[2]) # [B, 1, C]           
                 dot_prod = torch.matmul(x, learn_key.transpose(1,2)).squeeze(2) # [B, N]
-                import ipdb; ipdb.set_trace()
-                x = torch.tensor('blk,bkd->bld',self.soft_sort(-dot_prod), x)
+                # import ipdb; ipdb.set_trace()
+                x = torch.einsum('blk,bkd->bld',self.soft_sort(-dot_prod), x)
                 # rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
                 # x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
                 # perm_matrix = self.soft_sort(-1 * dot_prod) # [B, N, N]
