@@ -19,7 +19,7 @@ echo "Current path is $PATH"
 echo "Running"
 # nvidia-smi
 echo $CUDA_VISIBLE_DEVICES
-
+export TORCH_DISTRIBUTED_DEBUG=DETAIL
 #Superpod:
 #DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet/train"
 
