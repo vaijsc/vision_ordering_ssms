@@ -25,7 +25,7 @@ echo $CUDA_VISIBLE_DEVICES
 DATA_PATH="/home/anhnd81/anhnd81/.cache/imagenet"
 MODEL=mamba_vision_T
 BS=128
-EXP=ordering2_3
+EXP=ordering2_4
 # EXP=Test
 LR=8e-4 # original 8e-4
 WD=0.05
