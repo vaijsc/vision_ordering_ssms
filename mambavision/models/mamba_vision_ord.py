@@ -698,7 +698,7 @@ class MambaVisionLayer_reorder(nn.Module):
         self.soft_sort = SoftSort(hard=True)
 
     def forward(self, x):
-        B, _, H, W = x.shape
+        B, C, H, W = x.shape
 
         if self.transformer_block:
             pad_r = (self.window_size - W % self.window_size) % self.window_size
@@ -719,8 +719,12 @@ class MambaVisionLayer_reorder(nn.Module):
                 # import ipdb; ipdb.set_trace()
                 learn_key = x.mean(dim=1).view(x.shape[0], 1, x.shape[2]) # [B, 1, C]           
                 dot_prod = torch.matmul(x, learn_key.transpose(1,2)).squeeze(2) # [B, N]
-                perm_matrix = self.soft_sort(-1 * dot_prod) # [B, N, N]
-                x = torch.einsum('blk,bkd->bld', perm_matrix, x)       
+                _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
+                rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
+                x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
+                # perm_matrix = self.soft_sort(-1 * dot_prod) # [B, N, N]
+                # x = torch.einsum('blk,bkd->bld', perm_matrix, x)       
+                x = x_reordered
             x = blk(x) 
         if self.transformer_block:
             x = window_reverse(x, self.window_size, Hp, Wp)
