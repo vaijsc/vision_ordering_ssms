@@ -670,7 +670,7 @@ class MambaVisionLayer_reorder(nn.Module):
         super().__init__()
         self.conv = conv
         self.transformer_block = False
-        self.learnable_keys = nn.Parameter(torch.randn(1, 1, dim, requires_grad=True))
+        self.learnable_keys = nn.Parameter(torch.randn(1, 1, dim))
         if conv:
             self.blocks = nn.ModuleList([ConvBlock(dim=dim,
                                                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
@@ -720,12 +720,12 @@ class MambaVisionLayer_reorder(nn.Module):
                 learn_key = self.learnable_keys.expand(B, -1, -1) # [B, 1, C], x [B, N, C]
                 # learn_key = x.mean(dim=1).view(x.shape[0], 1, x.shape[2]) # [B, 1, C]           
                 dot_prod = torch.matmul(x, learn_key.transpose(1,2)).squeeze(2) # [B, N]
-                _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
-                rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
-                x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
+                x = torch.tensor('blk,bkd->bld',self.soft_sort(-dot_prod), x)
+                # rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
+                # x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
                 # perm_matrix = self.soft_sort(-1 * dot_prod) # [B, N, N]
                 # x = torch.einsum('blk,bkd->bld', perm_matrix, x)       
-                x = x_reordered
+                # x = x_reordered
             x = blk(x) 
         if self.transformer_block:
             x = window_reverse(x, self.window_size, Hp, Wp)
