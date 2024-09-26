@@ -28,6 +28,7 @@ from einops import rearrange, repeat
 from .registry import register_pip_model
 from pathlib import Path
 from torch import Tensor
+import numpy as np
 
 class SoftSort(torch.nn.Module):
     def __init__(self, tau=1.0, hard=False, pow=1.0):
@@ -349,12 +350,17 @@ class ConvBlock_reorder(nn.Module):
         if self.layer_scale:
             x = x * self.gamma.view(1, -1, 1, 1)
         x = input + self.drop_path(x)
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
+        x = x.view(x.shape[0], x.shape[1], -1)
+        x = x.transpose(1,2)
         learn_key = x.mean(dim=1).view(x.shape[0], 1, x.shape[2]) # [B, 1, C]           
         dot_prod = torch.matmul(x, learn_key.transpose(1,2)).squeeze(2) # [B, N]
         _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[1], dim=1)  # rearrange: [128, 49]
-        rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, C)  # [128, 49, 448]
+        rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, x.shape[2])  # [128, 49, 448]
         x_reordered = torch.gather(x, 1, rearrange_expanded.long())  # [128, 49, 448]
+        len_seq = int(np.sqrt(x_reordered.shape[1]))
+        x_reordered = x_reordered.view(-1, len_seq, len_seq, x_reordered.shape[2])
+        x_reordered = x_reordered.permute(0, 3, 1, 2)
         return x_reordered
 
 class MambaVisionMixer(nn.Module):
