@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=ord2_2
+#SBATCH --job-name=ord2_4
 #SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_ord2_3.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=4
