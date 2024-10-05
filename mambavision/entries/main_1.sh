@@ -39,3 +39,5 @@ torchrun --master-port=12380 --nproc_per_node=4 $RUN_FILE --mesa ${MESA} --input
  --data_dir=$DATA_PATH --model $MODEL --amp --weight-decay ${WD} --batch-size $BS --tag $EXP --lr $LR --warmup-lr $WR_LR #\
 #--resume /home/anhnd81/anhnd81/workspace/mambavision_1/output/train/perm1/20240910-162332-mamba_vision_T-224/checkpoint-307.pth.tar
 #--drop-path ${DR} 
+
+# ordering inside mambamixer block, use torch.topk with order token is mean()
