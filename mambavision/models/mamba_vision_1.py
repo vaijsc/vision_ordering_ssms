@@ -832,7 +832,7 @@ class MambaVisionLayer_ord(nn.Module):
             self.blocks = nn.ModuleList()
             for i in range (depth):
                 if i == 0:
-                    block = Block_ord(dim=dim,
+                    block = Block(dim=dim,
                                 counter=i, 
                                 transformer_blocks=transformer_blocks,
                                 num_heads=num_heads,
@@ -937,7 +937,7 @@ class MambaVision(nn.Module):
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
             if i >= 2:
-                level = MambaVisionLayer(dim=int(dim * 2 ** i),
+                level = MambaVisionLayer_ord(dim=int(dim * 2 ** i),
                                         depth=depths[i],
                                         num_heads=num_heads[i],
                                         window_size=window_size[i],
