@@ -534,14 +534,13 @@ class MambaVisionMixer_ord(nn.Module):
         B = rearrange(B, "(b l) dstate -> b dstate l", l=seqlen).contiguous() # torch.Size([128, 8, 196])
         C = rearrange(C, "(b l) dstate -> b dstate l", l=seqlen).contiguous() # torch.Size([128, 8, 196])
         # ord_token = x.mean(dim=2).unsqueeze(-1) # torch.Size([128, 160, 1])
-        import ipdb; ipdb.set_trace()
-        ord_token = self.keys.expand(B, -1, -1) # [128, 160, 1]
+        # import ipdb; ipdb.set_trace()
+        ord_token = self.keys.expand(x.shape[0], -1, -1) # [128, 160, 1]
         dot_prod = torch.matmul(ord_token.transpose(1,2), x).transpose(1,2).squeeze(-1)
-        perm_matrix = self.soft_sort(-dot_prod) # [B, N, N]
-    
+        perm_matrix = self.ss(-dot_prod) # [B, N, N]
         # perm_matrix [B, N, N]
         # x [B, C, N]
-        x = torch.einsum('blk, bkn -> bln', perm_matrix, x)
+        x = torch.einsum('bij,bjk->bik', x, perm_matrix)
         # _, rearrange1 = torch.topk(-1 * dot_prod, k=x.shape[2], dim=1)
         # rearrange_expanded = rearrange1.unsqueeze(-1).expand(-1, -1, x.shape[1]).transpose(1,2)  
         # x = torch.gather(x, 2, rearrange_expanded.long())
