@@ -492,7 +492,7 @@ class MambaVisionMixer_ord(nn.Module):
         hidden_states: (B, L, D)
         Returns: same shape as hidden_states
         """
-        # import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
         _, seqlen, _ = hidden_states.shape # torch.Size([128, 196, 320])
         xz = self.in_proj(hidden_states) # torch.Size([128, 196, 320])
         xz = rearrange(xz, "b l d -> b d l") # torch.Size([128, 320, 196])
@@ -832,7 +832,7 @@ class MambaVisionLayer_ord(nn.Module):
             self.blocks = nn.ModuleList()
             for i in range (depth):
                 if i == 0:
-                    block = Block(dim=dim,
+                    block = Block_ord(dim=dim,
                                 counter=i, 
                                 transformer_blocks=transformer_blocks,
                                 num_heads=num_heads,
