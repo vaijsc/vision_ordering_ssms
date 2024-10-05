@@ -937,7 +937,7 @@ class MambaVision(nn.Module):
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
             if i >= 2:
-                level = MambaVisionLayer_ord(dim=int(dim * 2 ** i),
+                level = MambaVisionLayer(dim=int(dim * 2 ** i),
                                         depth=depths[i],
                                         num_heads=num_heads[i],
                                         window_size=window_size[i],
