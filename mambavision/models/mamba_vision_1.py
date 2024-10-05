@@ -513,7 +513,7 @@ class MambaVisionMixer_ord(nn.Module):
         dot_prod = torch.matmul(ord_token.transpose(1,2), x).transpose(1,2).squeeze(-1)
         _, rearrange1 = torch.topk(-1 * dot_prod, k=x.shape[2], dim=1)
         rearrange_expanded = rearrange1.unsqueeze(-1).expand(-1, -1, x.shape[1]).transpose(1,2)  
-        x = torch.gather(x, 2, rearrange_expanded.long())
+        x = torch.gather(x, 2, index=rearrange_expanded)
         y = selective_scan_fn(x, 
                               dt, 
                               A, 
