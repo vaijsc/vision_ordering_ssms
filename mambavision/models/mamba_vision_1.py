@@ -492,7 +492,7 @@ class MambaVisionMixer_ord(nn.Module):
         hidden_states: (B, L, D)
         Returns: same shape as hidden_states
         """
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         _, seqlen, _ = hidden_states.shape # torch.Size([128, 196, 320])
         xz = self.in_proj(hidden_states) # torch.Size([128, 196, 320])
         xz = rearrange(xz, "b l d -> b d l") # torch.Size([128, 320, 196])
@@ -501,13 +501,7 @@ class MambaVisionMixer_ord(nn.Module):
         A = -torch.exp(self.A_log.float()) # torch.Size([160, 8])
         x = F.silu(F.conv1d(input=x, weight=self.conv1d_x.weight, bias=self.conv1d_x.bias, padding='same', groups=self.d_inner//2)) # torch.Size([128, 160, 196])
         z = F.silu(F.conv1d(input=z, weight=self.conv1d_z.weight, bias=self.conv1d_z.bias, padding='same', groups=self.d_inner//2)) # torch.Size([128, 160, 196])
-        
         x_dbl = self.x_proj(rearrange(x, "b d l -> (b l) d")) # torch.Size([128, 160, 196]) -> torch.Size([25088, 36])
-        ord_token = x.mean(dim=2).unsqueeze(-1) # torch.Size([128, 160, 1])
-        dot_prod = torch.matmul(ord_token.transpose(1,2), x).transpose(1,2).squeeze(-1)
-        _, rearrange = torch.topk(-1 * dot_prod, k=x.shape[2], dim=1)
-        rearrange_expanded = rearrange.unsqueeze(-1).expand(-1, -1, x.shape[1]).transpose(1,2)  
-        x = torch.gather(x, 2, rearrange_expanded.long())
         dt, B, C = torch.split(x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1)
         # dt torch.Size([25088, 20])
         # B torch.Size([25088, 8])
@@ -515,7 +509,11 @@ class MambaVisionMixer_ord(nn.Module):
         dt = rearrange(self.dt_proj(dt), "(b l) d -> b d l", l=seqlen) # torch.Size([128, 160, 196])
         B = rearrange(B, "(b l) dstate -> b dstate l", l=seqlen).contiguous() # torch.Size([128, 8, 196])
         C = rearrange(C, "(b l) dstate -> b dstate l", l=seqlen).contiguous() # torch.Size([128, 8, 196])
-        
+        ord_token = x.mean(dim=2).unsqueeze(-1) # torch.Size([128, 160, 1])
+        dot_prod = torch.matmul(ord_token.transpose(1,2), x).transpose(1,2).squeeze(-1)
+        _, rearrange1 = torch.topk(-1 * dot_prod, k=x.shape[2], dim=1)
+        rearrange_expanded = rearrange1.unsqueeze(-1).expand(-1, -1, x.shape[1]).transpose(1,2)  
+        x = torch.gather(x, 2, rearrange_expanded.long())
         y = selective_scan_fn(x, 
                               dt, 
                               A, 
