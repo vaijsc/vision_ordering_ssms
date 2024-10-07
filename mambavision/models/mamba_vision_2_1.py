@@ -510,7 +510,7 @@ class MambaVisionMixer_ord(nn.Module):
         )
         
         # self.keys = nn.Parameter(torch.randn(1, self.d_inner//2, 1)) # [128, 160, 1]
-        self.keys = nn.Parameter(torch.randn(128, self.d_inner//2, 1))
+        self.keys = nn.Parameter(torch.randn(1, self.d_inner//2, 1))
         self.ss = SoftSort(hard=True)
 
     def forward(self, hidden_states):
@@ -519,7 +519,7 @@ class MambaVisionMixer_ord(nn.Module):
         Returns: same shape as hidden_states
         """
         # import ipdb; ipdb.set_trace()
-        _, seqlen, _ = hidden_states.shape # torch.Size([128, 196, 320])
+        batch_size, seqlen, _ = hidden_states.shape # torch.Size([128, 196, 320])
         xz = self.in_proj(hidden_states) # torch.Size([128, 196, 320])
         xz = rearrange(xz, "b l d -> b d l") # torch.Size([128, 320, 196])
         x, z = xz.chunk(2, dim=1) # split into x, z torch.Size([128, 160, 196])
@@ -538,8 +538,8 @@ class MambaVisionMixer_ord(nn.Module):
         # ord_token = x.mean(dim=2).unsqueeze(-1) # torch.Size([128, 160, 1])
         # import ipdb; ipdb.set_trace()
         # ord_token = self.keys.expand(x.shape[0], -1, -1) # [128, 160, 1]
-        # if self.keys.size(0) != x.size(0):
-        #     self.keys = nn.Parameter(torch.randn(x.size(0), self.d_inner//2, 1).to(x.device))
+        if self.keys.size(0) != batch_size:
+            self.keys = nn.Parameter(torch.randn(batch_size, self.d_inner//2, 1).to(x.device))
         # ord_token = self.keys
         dot_prod = torch.matmul(self.keys.transpose(1,2), x).transpose(1,2).squeeze(-1)
         perm_matrix = self.ss(-dot_prod) # [B, N, N]
