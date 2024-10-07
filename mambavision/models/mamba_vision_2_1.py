@@ -509,7 +509,8 @@ class MambaVisionMixer_ord(nn.Module):
             **factory_kwargs,
         )
         
-        self.keys = nn.Parameter(torch.randn(128, self.d_inner//2, 1)) # [128, 160, 1]
+        # self.keys = nn.Parameter(torch.randn(1, self.d_inner//2, 1)) # [128, 160, 1]
+        self.keys = self.keys = nn.Parameter(torch.randn(1, self.d_inner//2))  # Learnable keys
         self.ss = SoftSort(hard=True)
 
     def forward(self, hidden_states):
@@ -537,6 +538,8 @@ class MambaVisionMixer_ord(nn.Module):
         # ord_token = x.mean(dim=2).unsqueeze(-1) # torch.Size([128, 160, 1])
         # import ipdb; ipdb.set_trace()
         # ord_token = self.keys.expand(x.shape[0], -1, -1) # [128, 160, 1]
+        if x.shape[0]!= 1:
+            self.keys = nn.Parameter(torch.randn(x.size(0), self.d_inner//2, 1).to(x.device))
         ord_token = self.keys
         dot_prod = torch.matmul(ord_token.transpose(1,2), x).transpose(1,2).squeeze(-1)
         perm_matrix = self.ss(-dot_prod) # [B, N, N]
