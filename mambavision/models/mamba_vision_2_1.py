@@ -540,8 +540,8 @@ class MambaVisionMixer_ord(nn.Module):
         # ord_token = self.keys.expand(x.shape[0], -1, -1) # [128, 160, 1]
         if self.keys.size(0) != x.size(0):
             self.keys = nn.Parameter(torch.randn(x.size(0), self.d_inner//2, 1).to(x.device))
-        ord_token = self.keys
-        dot_prod = torch.matmul(ord_token.transpose(1,2), x).transpose(1,2).squeeze(-1)
+        # ord_token = self.keys
+        dot_prod = torch.matmul(self.keys.transpose(1,2), x).transpose(1,2).squeeze(-1)
         perm_matrix = self.ss(-dot_prod) # [B, N, N]
         # perm_matrix [B, N, N]
         # x [B, C, N]
