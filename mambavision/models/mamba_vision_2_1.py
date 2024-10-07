@@ -510,7 +510,7 @@ class MambaVisionMixer_ord(nn.Module):
         )
         
         # self.keys = nn.Parameter(torch.randn(1, self.d_inner//2, 1)) # [128, 160, 1]
-        self.keys = self.keys = nn.Parameter(torch.randn(1, self.d_inner//2))  # Learnable keys
+        self.keys = nn.Parameter(torch.randn(1, self.d_inner//2, 1))
         self.ss = SoftSort(hard=True)
 
     def forward(self, hidden_states):
