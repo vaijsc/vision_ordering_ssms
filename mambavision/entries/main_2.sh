@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name=ss_ord
-#SBATCH --error=/lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/mambavision/result/mambaV_ord1.txt
+#SBATCH --job-name=ss_ord2
+#SBATCH --error=/lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/mambavision/result/mambaV_ord2.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=4
 #SBATCH --nodelist=sdc2-hpc-dgx-a100-017
@@ -27,7 +27,8 @@ export TORCH_DISTRIBUTED_DEBUG=DETAIL
 DATA_PATH="/lustre/scratch/client/vinai/users/phinh2/workspace/dataset/imagenet"
 MODEL=mamba_vision_T
 BS=128
-EXP=ord1
+# EXP=ord1
+EXP=ord2
 # EXP=Test
 LR=8e-4
 WD=0.05
