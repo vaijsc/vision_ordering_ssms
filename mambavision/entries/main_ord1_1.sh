@@ -41,3 +41,4 @@ torchrun --master-port=12380 --nproc_per_node=4 $RUN_FILE --mesa ${MESA} --input
 #--drop-path ${DR} 
 
 # ordering inside mambamixer block, use torch.topk with order token is mean()
+# chay not idea cuoi o cai post network
