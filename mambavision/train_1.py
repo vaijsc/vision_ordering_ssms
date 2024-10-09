@@ -39,7 +39,8 @@ from scheduler.scheduler_factory import create_scheduler
 import shutil
 from utils.datasets import imagenet_lmdb_dataset
 from tensorboard import TensorboardLogger
-from models.mamba_vision_1 import *
+# from models.mamba_vision_1 import * ord1
+from models.mamba_vision_1_1 import *
 
 try:
     from apex import amp
