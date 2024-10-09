@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name=ss_ord2
-#SBATCH --error=/lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/mambavision/result/mambaV_ord2.txt
+#SBATCH --job-name=ss2_1
+#SBATCH --error=/lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/mambavision/result/mambaV_ord2_1.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=4
 #SBATCH --nodelist=sdc2-hpc-dgx-a100-017
@@ -28,7 +28,7 @@ DATA_PATH="/lustre/scratch/client/vinai/users/phinh2/workspace/dataset/imagenet"
 MODEL=mamba_vision_T
 BS=128
 # EXP=ord1
-EXP=ord2
+EXP=ord2_1
 # EXP=Test
 LR=8e-4
 WD=0.05
@@ -42,3 +42,4 @@ torchrun --master_port 12381 --nproc_per_node=4 $RUN_FILE --mesa ${MESA} --input
 #  --drop-path ${DR}
 
 # ordering inside mambamixer block, use softsort()
+# 2_1 ordering inside mambamixer block, use softsort(), for every mambamixer block
