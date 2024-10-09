@@ -44,3 +44,4 @@ torchrun --master-port=12380 --nproc_per_node=4 $RUN_FILE --mesa ${MESA} --input
 
 #ord ordering inside mambamixer block, use torch.topk with order token is mean()
 #ord1-1 ordering inside mambamixer block, use torch.topk with order token is mean(), for each mambamixer block
+#ord1ss change to use softsort
