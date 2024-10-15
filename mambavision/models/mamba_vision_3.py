@@ -402,6 +402,7 @@ class MambaVisionMixer(nn.Module):
             Note: I refactored some parts out of `selective_scan_ref` out, so the functionality doesn't match exactly.
             
         """
+        import ipdb; ipdb.set_trace()
         (b, l, d_in) = u.shape
         n = A.shape[1]
         
