@@ -456,7 +456,7 @@ class MambaVisionMixer(nn.Module):
         #                       delta_bias=self.dt_proj.bias.float(), 
         #                       delta_softplus=True, 
         #                       return_last_state=None)
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         """
         x       torch.Size([128,160, 196])
         dt      torch.Size([128, 160, 196])
@@ -480,8 +480,8 @@ class MambaVisionMixer(nn.Module):
                                 B.transpose(1,2), 
                                 C.transpose(1,2), 
                                 self.D.float())
-        import ipdb; ipdb.set_trace()
-        y = torch.cat([y, z], dim=1)
+        # import ipdb; ipdb.set_trace()
+        y = torch.cat([y.transpose(1,2), z], dim=1)
         y = rearrange(y, "b d l -> b l d")
         out = self.out_proj(y)
         return out
