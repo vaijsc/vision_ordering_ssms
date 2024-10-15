@@ -2,7 +2,7 @@
 #SBATCH --job-name=mv3
 #SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_3.txt
 #SBATCH --nodes=1
-#SBATCH --gpus-per-node=4
+#SBATCH --gpus-per-node=2
 #SBATCH --nodelist=sdc2-hpc-dgx-a100-019
 #SBATCH --mem-per-gpu=50G
 #SBATCH --cpus-per-gpu=40
