@@ -402,7 +402,7 @@ class MambaVisionMixer(nn.Module):
             Note: I refactored some parts out of `selective_scan_ref` out, so the functionality doesn't match exactly.
             
         """
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         (b, l, d_in) = u.shape
         n = A.shape[1]
         
@@ -457,12 +457,29 @@ class MambaVisionMixer(nn.Module):
         #                       delta_softplus=True, 
         #                       return_last_state=None)
         import ipdb; ipdb.set_trace()
-        
-        y = self.selective_scan(x, 
-                                dt, 
+        """
+        x       torch.Size([128,160, 196])
+        dt      torch.Size([128, 160, 196])
+        A       torch.Size([160, 8])
+        B       torch.Size([128, 8, 196])
+        C       torch.Size([128, 8, 196])
+        D       torch.Size([160])
+        """
+        """
+        Args:
+            u: shape (b, l, d_in)    (See Glossary at top for definitions of b, l, d_in, n...)
+            delta: shape (b, l, d_in)
+            A: shape (d_in, n)
+            B: shape (b, l, n)
+            C: shape (b, l, n)
+            D: shape (d_in,)
+        """
+        y = self.selective_scan(self,
+                                x.tranpose(1,2), 
+                                dt.transpose(1,2), 
                                 A, 
-                                B, 
-                                C, 
+                                B.tranpose(1,2), 
+                                C.transpose(1,2), 
                                 self.D.float()
                                 # , 
                                 # z=None, 
@@ -470,6 +487,7 @@ class MambaVisionMixer(nn.Module):
                                 # delta_softplus=True, 
                                 # return_last_state=None
                                 )
+        import ipdb; ipdb.set_trace()
         y = torch.cat([y, z], dim=1)
         y = rearrange(y, "b d l -> b l d")
         out = self.out_proj(y)
