@@ -475,10 +475,10 @@ class MambaVisionMixer(nn.Module):
             D: shape (d_in,)
         """
         y = self.selective_scan(self,
-                                x.tranpose(1,2), 
+                                x.transpose(1,2), 
                                 dt.transpose(1,2), 
                                 A, 
-                                B.tranpose(1,2), 
+                                B.transpose(1,2), 
                                 C.transpose(1,2), 
                                 self.D.float()
                                 # , 
