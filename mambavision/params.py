@@ -7,7 +7,7 @@ checkpoint_path = '/home/ubuntu/workspace/mambavision_1/mambavision/model_weight
 # checkpoint_path = '/home/ubuntu/workspace/mambavision_1/mambavision/model_weights/checkpoint-3.pth.tar'
 checkpoint = torch.load(checkpoint_path,  map_location=torch.device('cpu')) # dictionary
 
-print(checkpoint)
+# print(checkpoint)
 # Extract the state dictionary
 state_dict = checkpoint['state_dict']
 
