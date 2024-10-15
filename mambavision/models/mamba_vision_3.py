@@ -474,19 +474,12 @@ class MambaVisionMixer(nn.Module):
             C: shape (b, l, n)
             D: shape (d_in,)
         """
-        y = self.selective_scan(self,
-                                x.transpose(1,2), 
+        y = self.selective_scan(x.transpose(1,2), 
                                 dt.transpose(1,2), 
                                 A, 
                                 B.transpose(1,2), 
                                 C.transpose(1,2), 
-                                self.D.float()
-                                # , 
-                                # z=None, 
-                                # delta_bias=self.dt_proj.bias.float(), 
-                                # delta_softplus=True, 
-                                # return_last_state=None
-                                )
+                                self.D.float())
         import ipdb; ipdb.set_trace()
         y = torch.cat([y, z], dim=1)
         y = rearrange(y, "b d l -> b l d")
