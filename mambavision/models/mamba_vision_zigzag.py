@@ -593,7 +593,11 @@ class MambaVisionLayer(nn.Module):
             else:
                 Hp, Wp = H, W
             import ipdb; ipdb.set_trace()
-            x = window_partition(x, self.window_size) # torch.Size([128, 196, 320])
+            # x torch.Size([128, 320, 14, 14])
+            reverse = x[:, :, 1::2, :].flip(3)  # Reverse the order from left to right
+            x[:, :, 1::2, :] = reverse  # Apply the reversed order to every other row
+            x = x.view(x.size(0), x.size(1), -1, x.size(3))  # Reshape to combine rows 
+            # x = window_partition(x, self.window_size) # torch.Size([128, 196, 320])
         import ipdb; ipdb.set_trace()
         for _, blk in enumerate(self.blocks):
             x = blk(x)
