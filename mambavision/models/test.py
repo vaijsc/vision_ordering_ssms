@@ -1,3 +1,5 @@
+import torch
+
 def window_partition(x, window_size):
     """
     Args:
@@ -13,6 +15,7 @@ def window_partition(x, window_size):
     windows = x.permute(0, 2, 4, 3, 5, 1).reshape(-1, window_size*window_size, C)
     return windows
 
-x = torch.randn(2, 3, 8, 8)
+x = torch.randn(1, 1, 8, 8)
+breakpoint()
 print(x)
 print(window_partition(x, 2))
