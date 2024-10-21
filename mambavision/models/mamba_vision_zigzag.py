@@ -381,17 +381,24 @@ class MambaVisionMixer(nn.Module):
         Returns: same shape as hidden_states
         """
         import ipdb; ipdb.set_trace()
-        _, seqlen, _ = hidden_states.shape
-        xz = self.in_proj(hidden_states)
-        xz = rearrange(xz, "b l d -> b d l")
-        x, z = xz.chunk(2, dim=1)
-        A = -torch.exp(self.A_log.float())
-        x = F.silu(F.conv1d(input=x, weight=self.conv1d_x.weight, bias=self.conv1d_x.bias, padding='same', groups=self.d_inner//2))
-        z = F.silu(F.conv1d(input=z, weight=self.conv1d_z.weight, bias=self.conv1d_z.bias, padding='same', groups=self.d_inner//2))
-        x_dbl = self.x_proj(rearrange(x, "b d l -> (b l) d"))
-        dt, B, C = torch.split(x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1)
-        dt = rearrange(self.dt_proj(dt), "(b l) d -> b d l", l=seqlen)
-        B = rearrange(B, "(b l) dstate -> b dstate l", l=seqlen).contiguous()
+        _, seqlen, _ = hidden_states.shape #torch.Size([128, 196, 320])
+        xz = self.in_proj(hidden_states) # torch.Size([128, 196, 320])
+        xz = rearrange(xz, "b l d -> b d l") # torch.Size([128, 320, 196])
+        x, z = xz.chunk(2, dim=1) # torch.Size([128, 160, 196]) torch.Size([128, 160, 196])
+        A = -torch.exp(self.A_log.float()) # torch.Size([160, 1])
+        x = F.silu(F.conv1d(input=x, weight=self.conv1d_x.weight, bias=self.conv1d_x.bias, padding='same', groups=self.d_inner//2)) # torch.Size([128, 160, 196])
+        
+        import numpy as np; window_size = int(np.sqrt(seqlen))
+        m = x.view(x.size(0), x.size(1), window_size, window_size) # torch.Size([128, 160, 14, 14])
+        reverse = m[:, :, 1::2, :].flip(3)  # Reverse the order from left to right
+        m[:, :, 1::2, :] = reverse  # Apply the reversed order to every other row
+        x = m.view(m.size(0), m.size(1), -1) # torch.Size([128, 160, 196])
+        
+        z = F.silu(F.conv1d(input=z, weight=self.conv1d_z.weight, bias=self.conv1d_z.bias, padding='same', groups=self.d_inner//2)) # torch.Size([128, 160, 196])
+        x_dbl = self.x_proj(rearrange(x, "b d l -> (b l) d")) # torch.Size([128*196, 160])
+        dt, B, C = torch.split(x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1) # torch.Size([128*196, 16]) torch.Size([128*196, 8]) torch.Size([128*196, 8])
+        dt = rearrange(self.dt_proj(dt), "(b l) d -> b d l", l=seqlen) # torch.Size([128, 16, 196])
+        B = rearrange(B, "(b l) dstate -> b dstate l", l=seqlen).contiguous() # torch.Size([128, 8, 196])
         C = rearrange(C, "(b l) dstate -> b dstate l", l=seqlen).contiguous()
         y = selective_scan_fn(x, 
                               dt, 
@@ -404,9 +411,14 @@ class MambaVisionMixer(nn.Module):
                               delta_softplus=True, 
                               return_last_state=None)
         
-        y = torch.cat([y, z], dim=1)
-        y = rearrange(y, "b d l -> b l d")
-        out = self.out_proj(y)
+        y = y.view(y.size(0), y.size(1), window_size, window_size) # torch.Size([128, 160, 14, 14])
+        reverse = y[:, :, 1::2, :].flip(3)  # Reverse the order from left to right
+        y[:, :, 1::2, :] = reverse  # Apply the reversed order to every other row
+        y = y.view(y.size(0), y.size(1), -1) # torch.Size([128, 160, 196])
+        
+        y = torch.cat([y, z], dim=1) # torch.Size([128, 320, 196])
+        y = rearrange(y, "b d l -> b l d") # torch.Size([128, 196, 320])
+        out = self.out_proj(y) # torch.Size([128, 196, 320])
         return out
     
 
