@@ -509,7 +509,7 @@ class MambaVisionMixer_ord(nn.Module):
             **factory_kwargs,
         )
         # self.keys = nn.Parameter(torch.randn(1, self.d_inner//2, 1)) # [1, 160, 1]
-        self.keys_196 = nn.Linear(196, 1, bias=False, **factory_kwargs)
+        # self.keys_196 = nn.Linear(196, 1, bias=False, **factory_kwargs)
         self.keys_49 = nn.Linear(49, 1, bias=False, **factory_kwargs)
         self.ss = SoftSort(hard=True)
 
@@ -539,10 +539,10 @@ class MambaVisionMixer_ord(nn.Module):
         # import ipdb; ipdb.set_trace()
         # ord_token = self.keys.expand(x.shape[0], -1, -1) # [128, 160, 1]
         # import ipdb; ipdb.set_trace()
-        if seqlen == 196:
-            ord_token = self.keys_196(x) # torch.Size([128, 160, 1])
-        else:
-            ord_token = self.keys_49(x) # torch.Size([128, 160, 1])
+        # if seqlen == 196:
+        #     ord_token = self.keys_196(x) # torch.Size([128, 160, 1])
+        # else:
+        ord_token = self.keys_49(x) # torch.Size([128, 160, 1])
         dot_prod = torch.matmul(ord_token.transpose(1,2), x).transpose(1,2).squeeze(-1)
         perm_matrix = self.ss(-dot_prod) # [B, N, N]
         # perm_matrix [B, N, N]
@@ -972,7 +972,7 @@ class MambaVision(nn.Module):
         self.levels = nn.ModuleList()
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
-            if i >= 2:
+            if i == 3:
                 level = MambaVisionLayer_ord(dim=int(dim * 2 ** i),
                                         depth=depths[i],
                                         num_heads=num_heads[i],
