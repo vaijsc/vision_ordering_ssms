@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=ord_zz
-#SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_zigzag.txt
+#SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_zigzag_1.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=2
-#SBATCH --nodelist=sdc2-hpc-dgx-a100-019
+#SBATCH --nodelist=sdc2-hpc-dgx-a100-015
 #SBATCH --mem-per-gpu=50G
 #SBATCH --cpus-per-gpu=40
 #SBATCH --partition=research
@@ -39,8 +39,8 @@ MESA=0.25
 RUN_FILE="/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/train_1.py"
 # checkpoint="/home/anhnd81/anhnd81/workspace/mambavision_1/output/train/perm1/20240908-234939-mamba_vision_T-224/last.pth.tar"
 torchrun --master-port=12380 --nproc_per_node=2 $RUN_FILE --mesa ${MESA} --input-size 3 224 224 --crop-pct=0.875 \
- --data_dir=$DATA_PATH --model $MODEL --amp --weight-decay ${WD} --batch-size $BS --tag $EXP --lr $LR --warmup-lr $WR_LR #\
- #--resume /home/anhnd81/anhnd81/workspace/mambavision_1/output/train/ord1_1/20241009-092931-mamba_vision_T-224/checkpoint-95.pth.tar
+ --data_dir=$DATA_PATH --model $MODEL --amp --weight-decay ${WD} --batch-size $BS --tag $EXP --lr $LR --warmup-lr $WR_LR \
+ --resume /home/anhnd81/anhnd81/workspace/mambavision_1/output/train/ord_zigzag/20241021-110627-mamba_vision_T-224/checkpoint-180.pth.tar
 #--drop-path ${DR} 
 
 #ord ordering inside mambamixer block, use torch.topk with order token is mean()
