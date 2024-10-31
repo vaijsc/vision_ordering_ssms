@@ -1,11 +1,12 @@
 #!/bin/bash
-export CUDA_VISIBLE_DEVICES=0,4,6,7
+#export CUDA_VISIBLE_DEVICES=0,4,6,7
+export CUDA_VISIBLE_DEVICES=3,4,6,7
 export TORCH_DISTRIBUTED_DEBUG=DETAIL
 DATA_PATH="/home/ubuntu/workspace/dataset/imagenet1K"
 MODEL=mamba_vision_T
 BS=128
-# EXP=mambaV_test1
-EXP=Test
+EXP=mambaV_test1
+# EXP=Test
 LR=8e-4 # original 8e-4
 WD=0.05
 WR_LR=1e-6
