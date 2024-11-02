@@ -41,7 +41,8 @@ from utils.datasets import imagenet_lmdb_dataset
 from tensorboard import TensorboardLogger
 # from models.mamba_vision import *
 # from models.mamba_vision_3 import * # test idea MoEs
-from models.mamba_vision_test import *
+# from models.mamba_vision_test import *
+from models.mamba_vision_test2 import *
 try:
     from apex import amp
     from apex.parallel import DistributedDataParallel as ApexDDP
