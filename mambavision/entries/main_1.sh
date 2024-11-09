@@ -39,7 +39,7 @@ MESA=0.25
 #RUN_FILE="/home/ubuntu/workspace/mambavision_1/mambavision/train_attn.py"
 RUN_FILE="/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/train.py"
 # checkpoint="/home/anhnd81/anhnd81/workspace/mambavision_1/output/train/perm1/20240908-234939-mamba_vision_T-224/last.pth.tar"
-torchrun --master-port=12380 --nproc_per_node=2 $RUN_FILE --mesa ${MESA} --input-size 3 224 224 --crop-pct=0.875 \
+torchrun --master-port=12380 --nproc_per_node=4 $RUN_FILE --mesa ${MESA} --input-size 3 224 224 --crop-pct=0.875 \
  --data_dir=$DATA_PATH --model $MODEL --amp --weight-decay ${WD} --batch-size $BS --tag $EXP --lr $LR --warmup-lr $WR_LR #\
 #  --resume /home/anhnd81/anhnd81/workspace/mambavision_1/output/train/ord_zigzag/20241021-110627-mamba_vision_T-224/checkpoint-180.pth.tar
 #--drop-path ${DR} 
