@@ -43,7 +43,8 @@ from tensorboard import TensorboardLogger
 # from models.mamba_vision_1_1 import *
 # from models.mamba_vision_2_1 import *
 # from models.mamba_vision_zigzag import *
-from models.mamba_vision_coc_ord import * 
+# from models.mamba_vision_coc_ord import *
+from models.mamba_vision_test import * 
 
 try:
     from apex import amp
