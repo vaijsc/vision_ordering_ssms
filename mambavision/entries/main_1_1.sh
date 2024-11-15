@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=zz
+#SBATCH --job-name=zz1
 #SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_zz1.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=2
