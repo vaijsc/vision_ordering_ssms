@@ -969,7 +969,7 @@ class MambaVision(nn.Module):
                                      downsample=(i < 3),
                                      layer_scale=layer_scale,
                                      layer_scale_conv=layer_scale_conv,
-                                     transformer_blocks=list(range(0, len(depths[i]), 2)),
+                                     transformer_blocks=list(range(0, (depths[i]), 2)),
                                      )
             else:
                 level = MambaVisionLayer(dim=int(dim * 2 ** i),

@@ -2,7 +2,7 @@
 #SBATCH --job-name=ss2_1
 #SBATCH --error=/lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/mambavision/result/mambaV_ord2_1.txt
 #SBATCH --nodes=1
-#SBATCH --gpus-per-node=2
+#SBATCH --gpus-per-node=4
 #SBATCH --nodelist=sdc2-hpc-dgx-a100-016
 #SBATCH --mem-per-gpu=50G
 #SBATCH --cpus-per-gpu=40
@@ -36,7 +36,7 @@ WR_LR=1e-6
 DR=0.2
 MESA=0.25
 RUN_FILE="/lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/mambavision/train_2_2.py"
-torchrun --master_port 12381 --nproc_per_node=2 $RUN_FILE --mesa ${MESA} --input-size 3 224 224 --crop-pct=0.875 \
+torchrun --master_port 12381 --nproc_per_node=4 $RUN_FILE --mesa ${MESA} --input-size 3 224 224 --crop-pct=0.875 \
  --data_dir=$DATA_PATH --model $MODEL --amp --weight-decay ${WD} --batch-size $BS --tag $EXP --lr $LR --warmup-lr $WR_LR # \
 # --resume /lustre/scratch/client/vinai/users/phinh2/workspace/mambavision_1/output/train/Original/20240817-001048-mamba_vision_T-224/checkpoint-308.pth.tar
 #  --drop-path ${DR}
