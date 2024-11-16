@@ -27,7 +27,29 @@ from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
 from einops import rearrange, repeat
 from .registry import register_pip_model
 from pathlib import Path
+from torch import Tensor
 
+class SoftSort(torch.nn.Module):
+    def __init__(self, tau=1.0, hard=False, pow=1.0):
+        super(SoftSort, self).__init__()
+        self.hard = hard
+        self.tau = tau
+        self.pow = pow
+
+    def forward(self, scores: Tensor):
+        """
+        scores: elements to be sorted. Typical shape: batch_size x n
+        """
+        scores = scores.unsqueeze(-1)
+        sorted = scores.sort(descending=True, dim=1)[0]
+        pairwise_diff = (scores.transpose(1, 2) - sorted).abs().pow(self.pow).neg() / self.tau
+        P_hat = pairwise_diff.softmax(-1)
+
+        if self.hard:
+            P = torch.zeros_like(P_hat, device=P_hat.device)
+            P.scatter_(-1, P_hat.topk(1, -1)[1], value=1)
+            P_hat = (P - P_hat).detach() + P_hat
+        return P_hat
 
 def _cfg(url='', **kwargs):
     return {'url': url,
@@ -748,6 +770,8 @@ class TransMamba(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d(1)
         self.head = nn.Linear(num_features, num_classes) if num_classes > 0 else nn.Identity()
         self.apply(self._init_weights)
+        self.keys_4 = nn.Linear(4, 1, bias=False)
+        self.ss = SoftSort(hard=True)
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -783,8 +807,14 @@ class TransMamba(nn.Module):
         x4 = x[:, :, 7, 7].unsqueeze(-1)
         z = torch.cat((x1, x2, x3, x4), dim=-1)
         z = z.transpose(1,2)
+        ord_token = self.keys_4(z) # torch.Size([128, 160, 1])
+        dot_prod = torch.matmul(ord_token.transpose(1,2), z).transpose(1,2).squeeze(-1)
+        perm_matrix = self.ss(-dot_prod) # [B, N, N]
+        # perm_matrix [B, N, N]
+        # x [B, C, N]
+        z = torch.einsum('bij,bjk->bik', z, perm_matrix)
         z = z + self.mixer(z)
-    
+
         # x = self.avgpool(x) # torch.Size([128, 320, 1, 1])
         # x = torch.flatten(x, 1) # torch.Size([128, 320])
         return z[:, -1, :].squeeze(1)

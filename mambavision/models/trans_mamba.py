@@ -720,11 +720,11 @@ class TransMamba(nn.Module):
         self.drop_path_rate = drop_path_rate
         dpr = [x.item() for x in torch.linspace(0, self.drop_path_rate, sum(depths))]
         self.levels = nn.ModuleList()
-        self.mixer = MambaVisionMixer(d_model=num_features, 
-                                        d_state=8,  
-                                        d_conv=3,    
-                                        expand=1
-                                        )
+        # self.mixer = MambaVisionMixer(d_model=num_features, 
+        #                                 d_state=8,  
+        #                                 d_conv=3,    
+        #                                 expand=1
+        #                                 )
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
             level = TransMambaLayer(dim=int(dim * 2 ** i),
@@ -777,17 +777,18 @@ class TransMamba(nn.Module):
         # import ipdb; ipdb.set_trace() # type: ignore
         x = x.to(self.norm.weight.device, dtype=self.norm.weight.dtype)
         x = self.norm(x) # [128, 320, 14, 14]
-        x1 = x[:, :, 6, 6].unsqueeze(-1)
-        x2 = x[:, :, 6, 7].unsqueeze(-1)
-        x3 = x[:, :, 7, 6].unsqueeze(-1)
-        x4 = x[:, :, 7, 7].unsqueeze(-1)
-        z = torch.cat((x1, x2, x3, x4), dim=-1)
-        z = z.transpose(1,2)
-        z = z + self.mixer(z)
+        # x1 = x[:, :, 6, 6].unsqueeze(-1)
+        # x2 = x[:, :, 6, 7].unsqueeze(-1)
+        # x3 = x[:, :, 7, 6].unsqueeze(-1)
+        # x4 = x[:, :, 7, 7].unsqueeze(-1)
+        # z = torch.cat((x1, x2, x3, x4), dim=-1)
+        # z = z.transpose(1,2)
+        # z = z + self.mixer(z)
     
-        # x = self.avgpool(x) # torch.Size([128, 320, 1, 1])
-        # x = torch.flatten(x, 1) # torch.Size([128, 320])
-        return z[:, -1, :].squeeze(1)
+        x = self.avgpool(x) # torch.Size([128, 320, 1, 1])
+        x = torch.flatten(x, 1) # torch.Size([128, 320])
+        # return z[:, -1, :].squeeze(1)
+        return x
 
     def forward(self, x):
         x = self.forward_features(x)
