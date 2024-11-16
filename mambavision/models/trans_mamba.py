@@ -459,6 +459,46 @@ class Attention(nn.Module):
         x = self.proj_drop(x)
         return x
 
+def scanning(x):
+    # x [128, 196, 320]
+    import numpy as np
+    # import ipdb; ipdb.set_trace()
+    a = int(np.sqrt(x.size(1)))
+    x = x.view(x.size(0), a, a, x.size(2)) # torch.Size([128, 14, 14, 320])
+    assert a %2 ==0
+    x1 = x[:, :int(a/2), :int(a/2), :]
+    x2 = x[:, :int(a/2), int(a/2):, :]
+    x3 = x[:, int(a/2):, :int(a/2), :]
+    x4 = x[:, int(a/2):, int(a/2):, :]
+    x2 = torch.flip(x2, dims=[1])
+    x3 = torch.flip(x3, dims =[0])
+    x4 = torch.flip(x4, dims=[0, 1])
+    x1 = x1.reshape(x1.size(0), -1, int(a**2/4), x1.size(3)).squeeze(1) # B, L^2/4, C
+    x2 = x2.reshape(x2.size(0), -1, int(a**2/4), x2.size(3)).squeeze(1) # B, L^2/4, C
+    x3 = x3.reshape(x3.size(0), -1, int(a**2/4), x3.size(3)).squeeze(1) # B, L^2/4, C
+    x4 = x4.reshape(x4.size(0), -1, int(a**2/4), x4.size(3)).squeeze(1) # B, L^2/4, C
+    return x1, x2, x3, x4
+                      
+def reverse(x1, x2, x3, x4):
+    import numpy as np
+    # import ipdb; ipdb.set_trace()
+    a = int(np.sqrt(x1.size(1))) * 2
+    x = np.zeros((x1.size(0), a * a, x1.size(2)))
+    x = torch.tensor(x)
+    x = x.view(x1.size(0), a, a , x1.size(2))
+    x2 = torch.flip(x2, dims=[1])
+    x3 = torch.flip(x3, dims =[0])
+    x4 = torch.flip(x4, dims=[0, 1])
+    x1 = x1.view(x1.size(0), int(a/2), int(a/2), x1.size(2)) # B, L^2/4, C
+    x2 = x2.view(x2.size(0), int(a/2), int(a/2), x2.size(2)) # B, L^2/4, C
+    x3 = x3.view(x3.size(0), int(a/2), int(a/2), x3.size(2)) # B, L^2/4, C
+    x4 = x4.view(x4.size(0), int(a/2), int(a/2), x4.size(2)) # B, L^2/4, C
+    x[:, :int(a/2), :int(a/2), :] = x1
+    x[:, :int(a/2), int(a/2):, :] = x2
+    x[:, int(a/2):, :int(a/2), :] = x3
+    x[:, int(a/2):, int(a/2):, :] = x4
+    x = x.view(x.size(0), x.size(1) * x.size(2), x.size(3)) # [128, 196, 320]
+    return x
 
 class Block(nn.Module):
     def __init__(self, 
@@ -479,8 +519,7 @@ class Block(nn.Module):
                  ):
         super().__init__()
         self.norm1 = norm_layer(dim)
-        if counter in transformer_blocks:
-            self.mixer = Attention(
+        self.attn = Attention(
             dim,
             num_heads=num_heads,
             qkv_bias=qkv_bias,
@@ -488,13 +527,12 @@ class Block(nn.Module):
             attn_drop=attn_drop,
             proj_drop=drop,
             norm_layer=norm_layer,
-        )
-        else:
-            self.mixer = MambaVisionMixer(d_model=dim, 
-                                          d_state=8,  
-                                          d_conv=3,    
-                                          expand=1
-                                          )
+            )
+        self.mixer = MambaVisionMixer(d_model=dim, 
+                                        d_state=8,  
+                                        d_conv=3,    
+                                        expand=1
+                                        )
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
@@ -505,23 +543,42 @@ class Block(nn.Module):
         self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
 
     def forward(self, x):
+        device = self.norm1.weight.device  # Get the device of the model parameters
+        dtype = self.norm1.weight.dtype   # Get the datatype of the model parameters
         # import ipdb; ipdb.set_trace()
-        """
-        Mlp(
-        (fc1): Linear(in_features=320, out_features=1280, bias=True)
-        (act): GELU(approximate='none')
-        (drop1): Dropout(p=0.0, inplace=False)
-        (norm): Identity()
-        (fc2): Linear(in_features=1280, out_features=320, bias=True)
-        (drop2): Dropout(p=0.0, inplace=False)
-        )
-        """
-        x = x + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x)))
+        x = x.to(device, dtype)  # Ensure input tensor is on the correct device and has the correct dtype
+
+        # Apply scanning operation (ensure these outputs are on the same device and dtype)
+        x1, x2, x3, x4 = scanning(x)
+        x1, x2, x3, x4 = x1.to(device, dtype), x2.to(device, dtype), x3.to(device, dtype), x4.to(device, dtype)
+
+        # Apply mixer and attention layers
+        x1 = x1 + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x1)))  # [128, 49, 320]
+        x2 = x2 + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x2)))  # [128, 49, 320]
+        x3 = x3 + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x3)))  # [128, 49, 320]
+        x4 = x4 + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x4)))  # [128, 49, 320]
+
+        # Combine and process with attention
+        z = torch.cat((x1[:, -1, :], x2[:, -1, :], x3[:, -1, :], x4[:, -1, :]), dim=1)  # Concatenate last tokens
+        z = z.view(z.size(0), 4, -1)  # Reshape to [128, 4, 320]
+        z = z + self.drop_path(self.gamma_1 * self.attn(self.norm2(z)))
+
+        # Update the last tokens of x1, x2, x3, x4
+        x1[:, -1, :] = z[:, 0, :]
+        x2[:, -1, :] = z[:, 1, :]
+        x3[:, -1, :] = z[:, 2, :]
+        x4[:, -1, :] = z[:, 3, :]
+
+        # Reverse the process to reconstruct x
+        x = reverse(x1, x2, x3, x4)
+        device2 = self.norm2.weight.device  # Get the device of the model parameters
+        dtype2 = self.norm2.weight.dtype   # Get the datatype of the model parameters
+        x = x.to(device2, dtype2)
         x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
-        return x
+        return x  # [128, 196, 320]
 
 
-class MambaVisionLayer(nn.Module):
+class TransMambaLayer(nn.Module):
     """
     MambaVision layer"
     """
@@ -616,7 +673,7 @@ class MambaVisionLayer(nn.Module):
         return self.downsample(x)
 
 
-class MambaVision(nn.Module):
+class TransMamba(nn.Module):
     """
     MambaVision,
     """
@@ -663,9 +720,14 @@ class MambaVision(nn.Module):
         self.drop_path_rate = drop_path_rate
         dpr = [x.item() for x in torch.linspace(0, self.drop_path_rate, sum(depths))]
         self.levels = nn.ModuleList()
+        self.mixer = MambaVisionMixer(d_model=num_features, 
+                                        d_state=8,  
+                                        d_conv=3,    
+                                        expand=1
+                                        )
         for i in range(len(depths)):
             conv = True if (i == 0 or i == 1) else False
-            level = MambaVisionLayer(dim=int(dim * 2 ** i),
+            level = TransMambaLayer(dim=int(dim * 2 ** i),
                                      depth=depths[i],
                                      num_heads=num_heads[i],
                                      window_size=window_size[i],
@@ -676,7 +738,7 @@ class MambaVision(nn.Module):
                                      drop=drop_rate,
                                      attn_drop=attn_drop_rate,
                                      drop_path=dpr[sum(depths[:i]):sum(depths[:i + 1])],
-                                     downsample=(i < 3),
+                                     downsample=(i < 2),
                                      layer_scale=layer_scale,
                                      layer_scale_conv=layer_scale_conv,
                                      transformer_blocks=list(range(depths[i]//2+1, depths[i])) if depths[i]%2!=0 else list(range(depths[i]//2, depths[i])),
@@ -709,13 +771,23 @@ class MambaVision(nn.Module):
     def forward_features(self, x):
         # print('x_shape = ', x.shape)
         x = self.patch_embed(x) # torch.Size([128, 3, 224, 224]) -> torch.Size([128, 160, 28, 28])
+        # import ipdb; ipdb.set_trace()
         for level in self.levels:
             x = level(x)
-        # torch.Size([128, 640, 7, 7])
-        x = self.norm(x)
-        x = self.avgpool(x) # torch.Size([128, 640, 1, 1])
-        x = torch.flatten(x, 1) # torch.Size([128, 640])
-        return x
+        # import ipdb; ipdb.set_trace() # type: ignore
+        x = x.to(self.norm.weight.device, dtype=self.norm.weight.dtype)
+        x = self.norm(x) # [128, 320, 14, 14]
+        x1 = x[:, :, 6, 6].unsqueeze(-1)
+        x2 = x[:, :, 6, 7].unsqueeze(-1)
+        x3 = x[:, :, 7, 6].unsqueeze(-1)
+        x4 = x[:, :, 7, 7].unsqueeze(-1)
+        z = torch.cat((x1, x2, x3, x4), dim=-1)
+        z = z.transpose(1,2)
+        z = z + self.mixer(z)
+    
+        # x = self.avgpool(x) # torch.Size([128, 320, 1, 1])
+        # x = torch.flatten(x, 1) # torch.Size([128, 320])
+        return z[:, -1, :].squeeze(1)
 
     def forward(self, x):
         x = self.forward_features(x)
@@ -732,13 +804,13 @@ class MambaVision(nn.Module):
 
 @register_pip_model
 @register_model
-def mamba_vision_T(pretrained=False, **kwargs):
+def TransMamba_T(pretrained=False, **kwargs):
     model_path = kwargs.pop("model_path", "/tmp/mamba_vision_T.pth.tar")
     pretrained_cfg = resolve_pretrained_cfg('mamba_vision_T').to_dict()
     update_args(pretrained_cfg, kwargs, kwargs_filter=None)
-    model = MambaVision(depths=[1, 3, 8, 4],
-                        num_heads=[2, 4, 8, 16],
-                        window_size=[8, 8, 14, 7],
+    model = TransMamba(depths=[1, 3, 12],
+                        num_heads=[2, 4, 8],
+                        window_size=[8, 8, 14],
                         dim=80,
                         in_dim=32,
                         mlp_ratio=4,
@@ -765,11 +837,11 @@ def mamba_vision_T(pretrained=False, **kwargs):
 
 @register_pip_model
 @register_model
-def mamba_vision_T2(pretrained=False, **kwargs):
+def TransMamba_T2(pretrained=False, **kwargs):
     model_path = kwargs.pop("model_path", "/tmp/mamba_vision_T2.pth.tar")
     pretrained_cfg = resolve_pretrained_cfg('mamba_vision_T2').to_dict()
     update_args(pretrained_cfg, kwargs, kwargs_filter=None)
-    model = MambaVision(depths=[1, 3, 11, 4],
+    model = TransMamba(depths=[1, 3, 11, 4],
                         num_heads=[2, 4, 8, 16],
                         window_size=[8, 8, 14, 7],
                         dim=80,
@@ -790,11 +862,11 @@ def mamba_vision_T2(pretrained=False, **kwargs):
 
 @register_pip_model
 @register_model
-def mamba_vision_S(pretrained=False, **kwargs):
+def TransMamba_S(pretrained=False, **kwargs):
     model_path = kwargs.pop("model_path", "/tmp/mamba_vision_S.pth.tar")
     pretrained_cfg = resolve_pretrained_cfg('mamba_vision_S').to_dict()
     update_args(pretrained_cfg, kwargs, kwargs_filter=None)
-    model = MambaVision(depths=[3, 3, 7, 5],
+    model = TransMamba(depths=[3, 3, 7, 5],
                         num_heads=[2, 4, 8, 16],
                         window_size=[8, 8, 14, 7],
                         dim=96,
@@ -815,11 +887,11 @@ def mamba_vision_S(pretrained=False, **kwargs):
 
 @register_pip_model
 @register_model
-def mamba_vision_B(pretrained=False, **kwargs):
+def TransMamba_B(pretrained=False, **kwargs):
     model_path = kwargs.pop("model_path", "/tmp/mamba_vision_B.pth.tar")
     pretrained_cfg = resolve_pretrained_cfg('mamba_vision_B').to_dict()
     update_args(pretrained_cfg, kwargs, kwargs_filter=None)
-    model = MambaVision(depths=[3, 3, 10, 5],
+    model = TransMamba(depths=[3, 3, 10, 5],
                         num_heads=[2, 4, 8, 16],
                         window_size=[8, 8, 14, 7],
                         dim=128,
@@ -842,11 +914,11 @@ def mamba_vision_B(pretrained=False, **kwargs):
 
 @register_pip_model
 @register_model
-def mamba_vision_L(pretrained=False, **kwargs):
+def TransMamba_L(pretrained=False, **kwargs):
     model_path = kwargs.pop("model_path", "/tmp/mamba_vision_L.pth.tar")
     pretrained_cfg = resolve_pretrained_cfg('mamba_vision_L').to_dict()
     update_args(pretrained_cfg, kwargs, kwargs_filter=None)
-    model = MambaVision(depths=[3, 3, 10, 5],
+    model = TransMamba(depths=[3, 3, 10, 5],
                         num_heads=[4, 8, 16, 32],
                         window_size=[8, 8, 14, 7],
                         dim=196,
@@ -869,11 +941,11 @@ def mamba_vision_L(pretrained=False, **kwargs):
 
 @register_pip_model
 @register_model
-def mamba_vision_L2(pretrained=False, **kwargs):
+def TransMamba_L2(pretrained=False, **kwargs):
     model_path = kwargs.pop("model_path", "/tmp/mamba_vision_L2.pth.tar")
     pretrained_cfg = resolve_pretrained_cfg('mamba_vision_L2').to_dict()
     update_args(pretrained_cfg, kwargs, kwargs_filter=None)
-    model = MambaVision(depths=[3, 3, 12, 5],
+    model = TransMamba(depths=[3, 3, 12, 5],
                         num_heads=[4, 8, 16, 32],
                         window_size=[8, 8, 14, 7],
                         dim=196,
