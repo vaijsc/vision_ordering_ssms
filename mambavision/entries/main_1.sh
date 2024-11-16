@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=zz
-#SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_zz.txt
+#SBATCH --job-name=ord_transmam
+#SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_transord.txt
 #SBATCH --nodes=1
-#SBATCH --gpus-per-node=2
-#SBATCH --nodelist=sdc2-hpc-dgx-a100-015
+#SBATCH --gpus-per-node=4
+#SBATCH --nodelist=sdc2-hpc-dgx-a100-018
 #SBATCH --mem-per-gpu=50G
 #SBATCH --cpus-per-gpu=40
 #SBATCH --partition=research
@@ -29,7 +29,8 @@ BS=128
 # EXP=ord1_1
 # EXP=ord_zigzag
 # EXP=coc
-EXP=zz
+# EXP=zz
+EXP=trans_mamord
 # EXP=ord1_1ss
 # EXP=Test
 LR=8e-4 # original 8e-4

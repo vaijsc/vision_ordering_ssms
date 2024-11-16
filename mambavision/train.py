@@ -45,8 +45,8 @@ from tensorboard import TensorboardLogger
 # from models.mamba_vision_test2 import *
 # from models.mamba_vision_test3 import *
 # from models.mamba_vision_coc import * 
-from models.mamba_vision_zz import * 
-
+# from models.mamba_vision_zz import * 
+from models.trans_mamba_ord import *
 try:
     from apex import amp
     from apex.parallel import DistributedDataParallel as ApexDDP
