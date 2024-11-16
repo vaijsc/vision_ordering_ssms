@@ -482,44 +482,52 @@ class Attention(nn.Module):
         return x
 
 def scanning(x):
-    # x [128, 196, 320]
-    import numpy as np
-    # import ipdb; ipdb.set_trace()
-    a = int(np.sqrt(x.size(1)))
-    x = x.view(x.size(0), a, a, x.size(2)) # torch.Size([128, 14, 14, 320])
-    assert a %2 ==0
-    x1 = x[:, :int(a/2), :int(a/2), :]
-    x2 = x[:, :int(a/2), int(a/2):, :]
-    x3 = x[:, int(a/2):, :int(a/2), :]
-    x4 = x[:, int(a/2):, int(a/2):, :]
-    x2 = torch.flip(x2, dims=[1])
-    x3 = torch.flip(x3, dims =[0])
-    x4 = torch.flip(x4, dims=[0, 1])
-    x1 = x1.reshape(x1.size(0), -1, int(a**2/4), x1.size(3)).squeeze(1) # B, L^2/4, C
-    x2 = x2.reshape(x2.size(0), -1, int(a**2/4), x2.size(3)).squeeze(1) # B, L^2/4, C
-    x3 = x3.reshape(x3.size(0), -1, int(a**2/4), x3.size(3)).squeeze(1) # B, L^2/4, C
-    x4 = x4.reshape(x4.size(0), -1, int(a**2/4), x4.size(3)).squeeze(1) # B, L^2/4, C
+    # x: [128, 196, 320]
+    batch_size, seq_len, channels = x.size()
+    a = int(seq_len**0.5)
+    assert a**2 == seq_len, "Input sequence length must be a perfect square"
+    assert a % 2 == 0, "Input dimensions must be even"
+
+    # Reshape to [128, 14, 14, 320]
+    x = x.view(batch_size, a, a, channels)
+
+    # Extract quadrants
+    mid = a // 2
+    x1 = x[:, :mid, :mid, :]
+    x2 = torch.flip(x[:, :mid, mid:, :], dims=[1])  # Flip vertically
+    x3 = torch.flip(x[:, mid:, :mid, :], dims=[0])  # Flip horizontally
+    x4 = torch.flip(x[:, mid:, mid:, :], dims=[0, 1])  # Flip both axes
+
+    # Reshape back to [B, L^2/4, C]
+    x1 = x1.flatten(1, 2)
+    x2 = x2.flatten(1, 2)
+    x3 = x3.flatten(1, 2)
+    x4 = x4.flatten(1, 2)
+
     return x1, x2, x3, x4
+
                       
 def reverse(x1, x2, x3, x4):
-    import numpy as np
-    # import ipdb; ipdb.set_trace()
-    a = int(np.sqrt(x1.size(1))) * 2
-    x = np.zeros((x1.size(0), a * a, x1.size(2)))
-    x = torch.tensor(x)
-    x = x.view(x1.size(0), a, a , x1.size(2))
-    x2 = torch.flip(x2, dims=[1])
-    x3 = torch.flip(x3, dims =[0])
-    x4 = torch.flip(x4, dims=[0, 1])
-    x1 = x1.view(x1.size(0), int(a/2), int(a/2), x1.size(2)) # B, L^2/4, C
-    x2 = x2.view(x2.size(0), int(a/2), int(a/2), x2.size(2)) # B, L^2/4, C
-    x3 = x3.view(x3.size(0), int(a/2), int(a/2), x3.size(2)) # B, L^2/4, C
-    x4 = x4.view(x4.size(0), int(a/2), int(a/2), x4.size(2)) # B, L^2/4, C
-    x[:, :int(a/2), :int(a/2), :] = x1
-    x[:, :int(a/2), int(a/2):, :] = x2
-    x[:, int(a/2):, :int(a/2), :] = x3
-    x[:, int(a/2):, int(a/2):, :] = x4
-    x = x.view(x.size(0), x.size(1) * x.size(2), x.size(3)) # [128, 196, 320]
+    # x1, x2, x3, x4: [128, 49, 320]
+    batch_size, seq_len, channels = x1.size()
+    mid = int(seq_len**0.5)
+    a = mid * 2
+
+    # Reshape to [128, 7, 7, 320]
+    x1 = x1.view(batch_size, mid, mid, channels)
+    x2 = torch.flip(x2.view(batch_size, mid, mid, channels), dims=[1])
+    x3 = torch.flip(x3.view(batch_size, mid, mid, channels), dims=[0])
+    x4 = torch.flip(x4.view(batch_size, mid, mid, channels), dims=[0, 1])
+
+    # Combine quadrants
+    x = torch.zeros((batch_size, a, a, channels), device=x1.device, dtype=x1.dtype)
+    x[:, :mid, :mid, :] = x1
+    x[:, :mid, mid:, :] = x2
+    x[:, mid:, :mid, :] = x3
+    x[:, mid:, mid:, :] = x4
+
+    # Reshape back to [128, 196, 320]
+    x = x.flatten(1, 2)
     return x
 
 class Block(nn.Module):
@@ -565,39 +573,35 @@ class Block(nn.Module):
         self.gamma_2 = nn.Parameter(layer_scale * torch.ones(dim))  if use_layer_scale else 1
 
     def forward(self, x):
-        device = self.norm1.weight.device  # Get the device of the model parameters
-        dtype = self.norm1.weight.dtype   # Get the datatype of the model parameters
-        # import ipdb; ipdb.set_trace()
-        x = x.to(device, dtype)  # Ensure input tensor is on the correct device and has the correct dtype
-
-        # Apply scanning operation (ensure these outputs are on the same device and dtype)
+        device = x.device  # Ensure tensors stay on the correct device
+        dtype = x.dtype    # Maintain consistent data type
+        
+        # Apply scanning operation
         x1, x2, x3, x4 = scanning(x)
-        x1, x2, x3, x4 = x1.to(device, dtype), x2.to(device, dtype), x3.to(device, dtype), x4.to(device, dtype)
+        
+        # Process each quadrant through the mixer
+        x1 = x1 + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x1)))
+        x2 = x2 + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x2)))
+        x3 = x3 + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x3)))
+        x4 = x4 + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x4)))
 
-        # Apply mixer and attention layers
-        x1 = x1 + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x1)))  # [128, 49, 320]
-        x2 = x2 + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x2)))  # [128, 49, 320]
-        x3 = x3 + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x3)))  # [128, 49, 320]
-        x4 = x4 + self.drop_path(self.gamma_1 * self.mixer(self.norm1(x4)))  # [128, 49, 320]
-
-        # Combine and process with attention
-        z = torch.cat((x1[:, -1, :], x2[:, -1, :], x3[:, -1, :], x4[:, -1, :]), dim=1)  # Concatenate last tokens
-        z = z.view(z.size(0), 4, -1)  # Reshape to [128, 4, 320]
+        # Combine last tokens of each quadrant
+        z = torch.cat((x1[:, -1, :], x2[:, -1, :], x3[:, -1, :], x4[:, -1, :]), dim=1)  # [B, 4 * dim]
+        z = z.view(z.size(0), 4, -1)  # [B, 4, dim]
         z = z + self.drop_path(self.gamma_1 * self.attn(self.norm2(z)))
 
-        # Update the last tokens of x1, x2, x3, x4
+        # Update last tokens in each quadrant
         x1[:, -1, :] = z[:, 0, :]
         x2[:, -1, :] = z[:, 1, :]
         x3[:, -1, :] = z[:, 2, :]
         x4[:, -1, :] = z[:, 3, :]
 
-        # Reverse the process to reconstruct x
+        # Reverse the scanning operation
         x = reverse(x1, x2, x3, x4)
-        device2 = self.norm2.weight.device  # Get the device of the model parameters
-        dtype2 = self.norm2.weight.dtype   # Get the datatype of the model parameters
-        x = x.to(device2, dtype2)
+        
+        # Apply MLP block
         x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
-        return x  # [128, 196, 320]
+        return x
 
 
 class TransMambaLayer(nn.Module):
@@ -814,7 +818,6 @@ class TransMamba(nn.Module):
         # x [B, C, N]
         z = torch.einsum('bij,bjk->bik', z, perm_matrix)
         z = z + self.mixer(z)
-
         # x = self.avgpool(x) # torch.Size([128, 320, 1, 1])
         # x = torch.flatten(x, 1) # torch.Size([128, 320])
         return z[:, -1, :].squeeze(1)
