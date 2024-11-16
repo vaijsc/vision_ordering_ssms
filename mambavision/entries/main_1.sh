@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=ord_transmam
+#SBATCH --job-name=ord16_transmam
 #SBATCH --error=/home/anhnd81/anhnd81/workspace/mambavision_1/mambavision/result/mambaV_transord.txt
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=4
-#SBATCH --nodelist=sdc2-hpc-dgx-a100-018
+#SBATCH --nodelist=sdc2-hpc-dgx-a100-016
 #SBATCH --mem-per-gpu=50G
 #SBATCH --cpus-per-gpu=40
 #SBATCH --partition=research
