@@ -1,0 +1,15 @@
+Current path is /home/anhnd81/.local/bin:/lustre/scratch/client/vinai/users/anhnd81/envs/mambavision/bin:/sw/software/miniconda3/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+Running
+0,1,2,3
+filter_bias_and_bn
+filter_bias_and_bn
+filter_bias_and_bn
+filter_bias_and_bn
+tensor([[nan, nan, nan,  ..., nan, nan, nan],
+        [nan, nan, nan,  ..., nan, nan, nan],
+        [nan, nan, nan,  ..., nan, nan, nan],
+        ...,
+        [nan, nan, nan,  ..., nan, nan, nan],
+        [nan, nan, nan,  ..., nan, nan, nan],
+        [nan, nan, nan,  ..., nan, nan, nan]], device='cuda:0',
+       dtype=torch.float16, grad_fn=<AddmmBackward0>)
